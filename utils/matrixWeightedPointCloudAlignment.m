@@ -1,4 +1,4 @@
-function [ T_21] = matrixWeightedPointCloudAlignment(p_f1_1, p_f2_2, R_1, R_2, T_21_est, calibParams)
+function [ T_21] = matrixWeightedPointCloudAlignment(p_f1_1, p_f2_2, R_1, R_2, T_21_est, calibParams, optParams)
 %MATRIXWEIGHTEDPOINTCLOUDALIGNMENT Performs a matrix weighted point cloud
 %alignment and returns a 4x4 transformation matrix
 
@@ -24,9 +24,8 @@ r_21_1 = T_12_est(1:3,4);
 
 
 i = 1;
-MAX_ITER = 20;
+maxIterations = optParams.maxGNIter;
 converged = false;
-LMlambda = 0.05;
 
 G2 = NaN(3,4, numLandmarks);
 G1 = NaN(3,4, numLandmarks);
@@ -36,12 +35,10 @@ for j=1:numLandmarks
 end        
 
 Jold = 0;
-while ~converged && i < MAX_ITER
+while ~converged && i < maxIterations
 
     LS = zeros(6,6);
-    RS = zeros(6,1);
-    lineLambda = 1;
-    
+    RS = zeros(6,1);    
     for j=1:numLandmarks
         
         e_j = p_f2_2(1:3,j) - C_21*(p_f1_1(1:3,j) - r_21_1);
@@ -54,7 +51,7 @@ while ~converged && i < MAX_ITER
         
         %Build up Ej'*Wj*Ej and -Ej'*W'ej; the left and right sides
         %Use LM if lambda > 0
-        LS = LS + E_j'*(Sigma_j\E_j) + LMlambda*diag(diag(E_j'*(Sigma_j\E_j)));
+        LS = LS + E_j'*(Sigma_j\E_j) + optParams.LMlambda*diag(diag(E_j'*(Sigma_j\E_j)));
         RS = RS + E_j'*(Sigma_j\e_j);
         %Keep track of cost function in the first iteration
         if i == 1
@@ -66,7 +63,7 @@ while ~converged && i < MAX_ITER
 
    xi =LS\(-RS); 
    
-    xi_star = lineLambda*xi;
+    xi_star = optParams.lineLambda*xi;
     phi = xi_star(4:6);
     eps = xi_star(1:3);
 

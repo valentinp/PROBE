@@ -5,6 +5,7 @@ clear all;
 clc;
 addpath('utils');
 addpath('testing');
+
 data = load('datasets/dataset3_fresh_100lessnoisy.mat');
 %Set number of landmarks
 rng('shuffle');
@@ -22,13 +23,14 @@ vehicleCamTransform.rho_cv_v = data.rho_v_c_v;
 T_cv = [data.C_c_v -data.C_c_v*data.rho_v_c_v; 0 0 0 1];
 
 
-kStart = 500;
-kEnd = 1000%size(data.y_k_j,2)-2; 
+kStart = 1200;
+kEnd = 1700;%size(data.y_k_j,2)-2; 
 
 %% Setup
 % Extract noise values
 %data.y_var = 1*ones(4,1);
-R = diag(data.y_var);
+addpath('settings');
+settings_dataset3;
 
 %% Main Loop
 
@@ -88,7 +90,7 @@ for k=(kStart+1):kEnd
 %      plot3([p_f1_1(1,:); p_f2_2(1,:)], [p_f1_1(2,:); p_f2_2(2,:)], [p_f1_1(3,:); p_f2_2(3,:)]);
 %      pause();
         %Perform RANSAC scalar weighted calculation
-       [p_f1_1, p_f2_2, T_21_cam_est] = findInliersRANSAC(p_f1_1, p_f2_2);
+       [p_f1_1, p_f2_2, T_21_cam_est] = findInliersRANSAC(p_f1_1, p_f2_2,optParams);
         
 
         
@@ -109,7 +111,7 @@ for k=(kStart+1):kEnd
         
 %         T_21_opt = [T_21_opt(1:3,1:3) -T_21_opt(1:3,1:3)*T_21_opt(1:3,4); 0 0 0 1];
         
-        T_21_opt = matrixWeightedPointCloudAlignment(p_f1_1, p_f2_2, R_1, R_2, T_21_cam, calibParams);
+        T_21_opt = matrixWeightedPointCloudAlignment(p_f1_1, p_f2_2, R_1, R_2, T_21_cam, calibParams, optParams);
         %T_21_opt = T_21_cam_est;
     else
         T_21_opt = T_21_cam;

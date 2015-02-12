@@ -1,4 +1,4 @@
-function [p_f1_1, p_f2_2, T_21_cam_best] = findInliersRANSAC(p_f1_1, p_f2_2)
+function [p_f1_1, p_f2_2, T_21_cam_best] = findInliersRANSAC(p_f1_1, p_f2_2, optParams)
 %FINDINLIERSRANSAC Uses RANSAC to find inliers and fit the best scalar
 %weighted model
 
@@ -19,7 +19,6 @@ for rn_i = 1:ransacMaxIterations
     T_21_test = scalarWeightedPointCloudAlignment(p_f1_1(:, threeIdx), p_f2_2(:,threeIdx));
     
     %Compute all points that fall outside the threshold (via cost function)
-    costThresh = 0.05;
     inlierCount = 0;
     inlierSet = threeIdx;
 %     costHist = NaN(1, length(restIdx));
@@ -27,7 +26,7 @@ for rn_i = 1:ransacMaxIterations
         errorVec = homo2cart(T_21_test*cart2homo(p_f1_1(:,f_i))) - p_f2_2(:,f_i);
         cost = 0.5*(errorVec)'*(errorVec);
 %         costHist(f_i) = cost;
-        if cost < costThresh
+        if cost < optParams.RANSACCostThresh
            inlierCount = inlierCount + 1;
            inlierSet(end+1) = f_i;
         end
