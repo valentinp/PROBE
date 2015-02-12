@@ -6,7 +6,7 @@ clc;
 addpath('utils');
 addpath('testing');
 
-data = load('datasets/dataset3_fresh_100lessnoisy.mat');
+data = load('datasets/2011_09_26_drive_0095_sync_KLT.mat');
 %Set number of landmarks
 rng('shuffle');
 numLandmarks = size(data.y_k_j,3);
@@ -23,22 +23,13 @@ vehicleCamTransform.rho_cv_v = data.rho_v_c_v;
 T_cv = [data.C_c_v -data.C_c_v*data.rho_v_c_v; 0 0 0 1];
 
 
-kStart = 1200;
-kEnd = 1700;%size(data.y_k_j,2)-2; 
 
 %% Setup
-% Extract noise values
-%data.y_var = 1*ones(4,1);
 addpath('settings');
-settings_dataset3;
+%settings_dataset3
+settings_KITTI;
 
 %% Main Loop
-
-%Use ground truth for the first state
-% firstState.C_vi = eye(3);
-% firstState.r_vi_i = zeros(3,1);
-firstState.C_vi = Cfrompsi(data.theta_vk_i(:,kStart));
-firstState.r_vi_i = data.r_i_vk_i(:,kStart);
 
 firstState.k = kStart;
 oldState = firstState;
@@ -83,7 +74,7 @@ for k=(kStart+1):kEnd
      
     
     %If there are enough points
-    if size(p_f1_1, 2) > 3
+    if size(p_f1_1, 2) > optParams.minFeaturesForOpt
 %      plot3(p_f1_1(1,:), p_f1_1(2,:), p_f1_1(3,:), 'r*');
 %      hold on;
 %      plot3(p_f2_2(1,:), p_f2_2(2,:), p_f2_2(3,:), 'g*');
@@ -149,7 +140,6 @@ end
 plot3(translation(1,:),translation(2,:),translation(3,:), '-b');
  hold on;
 plot3(translation_imu(1,:),translation_imu(2,:),translation_imu(3,:), '-r');
-%data.r_i_vk_i = data.p_vi_i;
 plot3(data.r_i_vk_i(1,kStart:kEnd),data.r_i_vk_i(2,kStart:kEnd),data.r_i_vk_i(3,kStart:kEnd), '-g');
 
 xlabel('x');
