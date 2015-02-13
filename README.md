@@ -1,3 +1,3 @@
-# vio-f2f
+# PREVIEW
 
-Frame two frame visual inertial odometry.
+Predictive robust estimation.
