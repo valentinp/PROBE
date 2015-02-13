@@ -3,11 +3,11 @@ disp('===========================');
 addpath('vo');
 addpath('extraction/utils');
 addpath('extraction/utils/devkit');
-dataBaseDir = '/Volumes/STARSExFAT/KITTI/2011_09_30/2011_09_30_drive_0027_sync';
-dataCalibDir = '/Volumes/STARSExFAT/KITTI/2011_09_30';
+dataBaseDir = '/Volumes/STARSExFAT/KITTI/2011_10_03/2011_10_03_drive_0042_sync';
+dataCalibDir = '/Users/valentinp/Desktop/KITTI/2011_09_26';
 
 %% Get ground truth and import data
-frameRange = 1:200;
+frameRange = 1:266;
 %Image data
 leftImageData = loadImageData([dataBaseDir '/image_00'], frameRange);
 rightImageData = loadImageData([dataBaseDir '/image_01'], frameRange);
@@ -73,7 +73,7 @@ addpath('utils');
 
 R = diag(100*ones(4,1));
 
-optParams.RANSACCostThresh = 5;
+optParams.RANSACCostThresh = 3;
 optParams.maxGNIter = 10;
 optParams.lineLambda = 0.5;
 optParams.LMlambda = 1e-5;
@@ -152,7 +152,7 @@ disp(['Number of matched points: ' num2str(length(p_matched))]);
         p_f1_1 = p_f1_1(:, ~pruneId);
         p_f2_2 = p_f2_2(:, ~pruneId);
         
-        selectIdx = randperm(size(p_f1_1,2),500);
+        selectIdx = randperm(size(p_f1_1,2),200);
 
         p_f1_1 = p_f1_1(:, selectIdx);
         p_f2_2 = p_f2_2(:, selectIdx);
@@ -209,7 +209,7 @@ figure
 plot(translation(1,:),translation(3,:), '-b');
  hold on;
 plot(translation_imu(1,:),translation_imu(3,:), '-r');
-plot(p_vi_i(1,frameRange),p_vi_i(3,frameRange), '-g');
+plot(p_vi_i(1,:),p_vi_i(3,:), '-g');
 
 xlabel('x');
 ylabel('y');

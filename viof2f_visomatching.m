@@ -116,11 +116,11 @@ disp(['Number of matched points: ' num2str(length(p_matched))]);
         p_f1_1 = p_f1_1(:, selectIdx);
         p_f2_2 = p_f2_2(:, selectIdx);
         
-        [p_f1_1, p_f2_2, T_21_cam_est] = findInliersRANSAC(p_f1_1, p_f2_2,optParams);
+        %[p_f1_1, p_f2_2, T_21_cam_est] = findInliersRANSAC(p_f1_1, p_f2_2,optParams);
        
         R_1 = repmat(R, [1 1 size(p_f1_1, 2)]);
         R_2 = R_1;
-        T_21_opt = matrixWeightedPointCloudAlignment(p_f1_1, p_f2_2, R_1, R_2, T_21_cam_est, calibParams, optParams);
+        T_21_opt = matrixWeightedPointCloudAlignment(p_f1_1, p_f2_2, R_1, R_2, eye(4), calibParams, optParams);
 
         T_wcam = T_wcam*inv(T_21_opt);
         % update trajectory
