@@ -7,7 +7,9 @@ function [imuData, frameRange] = loadImuData(imuDataFolder, imageTimestamps)
     oxtsData = loadOxtsliteData(imuDataFolder);
     % load IMU Data
     v_index = 9:11; % 12:14 body frame, 15:17 FLU frame
+    a_index = 15:17; % 15:17 FLU frame
     omega_index = 21:23; % 18:20 body frame, 21:23 FLU frame
+    
 
        
     dateStrings = loadTimestamps([imuDataFolder '/oxts']);
@@ -22,6 +24,7 @@ function [imuData, frameRange] = loadImuData(imuDataFolder, imageTimestamps)
     imuData.measVel = zeros(3, frameNum);
     imuData.measOrient = zeros(4, frameNum);
     imuData.measOmega = zeros(3,frameNum);
+    imuData.measAccel = zeros(3, frameNum);
     imuData.initialVelocity = zeros(3,1);
     
    
@@ -50,6 +53,7 @@ function [imuData, frameRange] = loadImuData(imuDataFolder, imageTimestamps)
 
       imuData.measOrient(:,meas_i) = rotMatToQuat(R);
       imuData.measVel(:,meas_i) =  oxtsData{i}(v_index);
+      imuData.measAccel(:,meas_i) =  oxtsData{i}(a_index)' - R'*[0;0;9.81];
 
      
       if meas_i == 1
