@@ -6,7 +6,7 @@ clc;
 addpath('utils');
 addpath('testing');
 
-data = load('datasets/2011_09_26_drive_0095_sync_KLT.mat');
+data = load('extraction/2015-01-28-16-11-17_1loop.mat');
 %Set number of landmarks
 rng('shuffle');
 numLandmarks = size(data.y_k_j,3);
@@ -27,7 +27,8 @@ T_cv = [data.C_c_v -data.C_c_v*data.rho_v_c_v; 0 0 0 1];
 %% Setup
 addpath('settings');
 %settings_dataset3
-settings_KITTI;
+%settings_KITTI;
+settings_viSensor;
 
 %% Main Loop
 
@@ -70,7 +71,7 @@ for k=(kStart+1):kEnd
     
 
     %0-pt inlier check with IMU propagation
-    %[p_f1_1, p_f2_2] = findInliers(p_f1_1, p_f2_2, T_21_cam);
+    [p_f1_1, p_f2_2] = findInliers(p_f1_1, p_f2_2, T_21_cam, optParams);
      
     
     %If there are enough points
@@ -80,7 +81,18 @@ for k=(kStart+1):kEnd
 %      plot3(p_f2_2(1,:), p_f2_2(2,:), p_f2_2(3,:), 'g*');
 %      plot3([p_f1_1(1,:); p_f2_2(1,:)], [p_f1_1(2,:); p_f2_2(2,:)], [p_f1_1(3,:); p_f2_2(3,:)]);
 %      pause();
-        %Perform RANSAC scalar weighted calculation
+% 
+%     T_test =  inv(T_k0_hist(:, :, end));
+%     T_test_imu =  inv(T_k0_imu_hist(:, :, end));
+%     
+%     plot3(T_test(1,4),T_test(2,4),T_test(3,4),'g*');
+%     plot3(T_test_imu(1,4),T_test_imu(2,4),T_test_imu(3,4),'b*');
+%     hold on;
+%     grid on;
+%     drawnow();
+
+    
+       %Perform RANSAC scalar weighted calculation
        [p_f1_1, p_f2_2, T_21_cam_est] = findInliersRANSAC(p_f1_1, p_f2_2,optParams);
         
 
@@ -102,7 +114,7 @@ for k=(kStart+1):kEnd
         
 %         T_21_opt = [T_21_opt(1:3,1:3) -T_21_opt(1:3,1:3)*T_21_opt(1:3,4); 0 0 0 1];
         
-        T_21_opt = matrixWeightedPointCloudAlignment(p_f1_1, p_f2_2, R_1, R_2, T_21_cam, calibParams, optParams);
+        T_21_opt = matrixWeightedPointCloudAlignment(p_f1_1, p_f2_2, R_1, R_2, T_21_cam_est, calibParams, optParams);
         %T_21_opt = T_21_cam_est;
     else
         T_21_opt = T_21_cam;

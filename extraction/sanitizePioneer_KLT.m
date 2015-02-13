@@ -11,7 +11,7 @@ else
     addpath('~/Dropbox/PhD/Code/MATLAB/matlab_rosbag-0.4-linux64/');
 end
 %% Parameters
-rosBagFileName = '~/Desktop/Pioneer-VI/2015-01-28-16-19-56_2loops.bag';
+rosBagFileName = '~/Desktop/Pioneer-VI/2015-01-28-16-11-17_1loop.bag';
 imuTopic = '/imu0';
 viRightCamTopic = '/right/image_rect';
 viLeftCamTopic = '/left/image_rect';
@@ -59,6 +59,9 @@ for i=1:skipFrames:numFrames
     
      viLeftImage = reshape(bagImageLeftVIData{i}.data, viImageSize(1), viImageSize(2))';
     viRightImage = reshape(bagImageRightVIData{i}.data, viImageSize(1), viImageSize(2))';
+    
+       viLeftImage = viLeftImage(1:478, :);
+   viRightImage = viRightImage(1:478, :);
    
     if i == 1 || detectNewPoints
     detectNewPoints = false;     
@@ -66,8 +69,8 @@ for i=1:skipFrames:numFrames
     leftPoints = detectSURFFeatures(viLeftImage);
     rightPoints = detectSURFFeatures(viRightImage);
     
-    %leftPoints = leftPoints.selectStrongest(500);
-    %rightPoints = rightPoints.selectStrongest(500);
+    leftPoints = leftPoints.selectStrongest(300);
+    rightPoints = rightPoints.selectStrongest(300);
     
     %Extract features and stereo match
    [featuresLeft, validLeftPoints] = extractFeatures(viLeftImage, leftPoints);
@@ -78,10 +81,10 @@ for i=1:skipFrames:numFrames
     featuresLeft = featuresLeft(indexPairs(:, 1), :);
     matchedPointsRight = validRightPoints(indexPairs(:, 2), :);
     
-    %inliers = abs((matchedPointsLeft.Location(:, 2) - matchedPointsRight.Location(:, 2))) <= 0.25 & abs((matchedPointsLeft.Location(:, 1) - matchedPointsRight.Location(:, 1))) > 3;
+    inliers = abs((matchedPointsLeft.Location(:, 2) - matchedPointsRight.Location(:, 2))) <= 1;
     
-   % matchedPointsLeft = matchedPointsLeft(inliers, :);
-   % matchedPointsRight = matchedPointsRight(inliers, :);
+    matchedPointsLeft = matchedPointsLeft(inliers, :);
+    matchedPointsRight = matchedPointsRight(inliers, :);
    
      pointTrackerL = vision.PointTracker('MaxBidirectionalError', 5);
      initialize(pointTrackerL, matchedPointsLeft.Location, viLeftImage);
@@ -145,7 +148,7 @@ for i=1:skipFrames:numFrames
 end
 
 %% Prune points with low observation count
-
+% 
 pruneIds = [];
 totObs = 0;
 for p_i = 1:length(seenFeatureStructs)
@@ -168,21 +171,21 @@ fprintf('%d remaining features. \n', length(seenFeatureStructs) - length(pruneId
 
 seenFeatureStructsPruned = removeCells(seenFeatureStructs, pruneIds);
 
-%% Plot feature tracks
-
-figure
-subplot(2,1,1);
-plot(0,0);
-hold on;
-for f_i = 1:length(seenFeatureStructsPruned)
-    plot(seenFeatureStructsPruned{f_i}.leftPixels(1,:), seenFeatureStructsPruned{f_i}.leftPixels(2,:));
-end
-subplot(2,1,2);
-plot(0,0);
-hold on;
-for f_i = 1:length(seenFeatureStructsPruned)
-    plot(seenFeatureStructsPruned{f_i}.rightPixels(1,:), seenFeatureStructsPruned{f_i}.rightPixels(2,:));
-end
+% %% Plot feature tracks
+% 
+% figure
+% subplot(2,1,1);
+% plot(0,0);
+% hold on;
+% for f_i = 1:length(seenFeatureStructsPruned)
+%     plot(seenFeatureStructsPruned{f_i}.leftPixels(1,:), seenFeatureStructsPruned{f_i}.leftPixels(2,:));
+% end
+% subplot(2,1,2);
+% plot(0,0);
+% hold on;
+% for f_i = 1:length(seenFeatureStructsPruned)
+%     plot(seenFeatureStructsPruned{f_i}.rightPixels(1,:), seenFeatureStructsPruned{f_i}.rightPixels(2,:));
+% end
 
 %%
 
@@ -208,8 +211,8 @@ addpath('integration');
 gVec = zeros(3,1);
 
 %Calculate gravity
-for imu_i=1:imuRate*3
-    gVec = gVec + 1/(imuRate*3)*[bagImuData{imu_i}.linear_acceleration];
+for imu_i=1:imuRate*5
+    gVec = gVec + 1/(imuRate*5)*[bagImuData{imu_i}.linear_acceleration];
 end
 %Subtract gravity
 imuData = NaN(6, length(bagImuData));
@@ -220,9 +223,9 @@ for imu_i=1:length(bagImuData)
 end
 
 %Zero out out of plane measurements
-imuData(2,:) = zeros(length(imuData(2,:)), 1);
-imuData(4,:) = zeros(length(imuData(4,:)), 1);
-imuData(6,:) = zeros(length(imuData(6,:)), 1);
+% imuData(2,:) = zeros(length(imuData(2,:)), 1);
+% imuData(4,:) = zeros(length(imuData(4,:)), 1);
+% imuData(6,:) = zeros(length(imuData(6,:)), 1);
 
 %Begin integration
 lastViTime = bagImageLeftVIData{1}.header.stamp.time;
@@ -288,7 +291,7 @@ rho_v_c_v = p_ci_i;
 
 f = strsplit(rosBagFileName, '/');
 f = strsplit(char(f(end)), '.');
-fileName = [char(f(1)) '_planarMeas.mat'];
+fileName = [char(f(1)) '.mat'];
 
 size(w_vk_vk_i)
 size(v_vk_vk_i)
