@@ -59,8 +59,6 @@ figure('Color',[1 1 1]);
 ha1 = axes('Position',[0.05,0.7,0.9,0.25]);
 %axis off;
 ha2 = axes('Position',[0.05,0.05,0.9,0.6]);
-set(gca,'XTick',-500:10:500);
-set(gca,'YTick',-500:10:500);
 axis equal, grid on, hold on;
 %%
 
