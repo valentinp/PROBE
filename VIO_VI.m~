@@ -1,9 +1,13 @@
 % demonstrates stereo visual odometry on an image sequence
+clear all;
+close all;
 disp('===========================');
 addpath('vo');
 addpath('utils');
+addpath('learning');
+
 addpath('~/Dropbox/PhD/Code/MATLAB/matlab_rosbag-0.4-mac64/');
-rosBagFileName = '~/Desktop/Pioneer-VI/2015-01-28-16-11-17_1loop.bag';
+rosBagFileName = '~/Desktop/Pioneer-VI/2015-02-13-18-29-39-fwbw.bag';
 viRightCamTopic = '/right/image_rect';
 viLeftCamTopic = '/left/image_rect';
 viconTopic = '/vicon/Pioneer1/Base';
@@ -25,7 +29,7 @@ param.f     = data.fu;
 param.cu    = data.cu;
 param.cv    = data.cv;
 param.base  = data.b;
-first_frame = 2;
+first_frame = 1;
 calibParams.c_u = data.cu;
 calibParams.c_v = data.cv;
 calibParams.f_u = data.fu;
@@ -57,7 +61,7 @@ param.refinement             = 0;   % refinement (0=none,1=pixel,2=subpixel)
 addpath('settings');
 
 R = diag(25*ones(4,1));
-optParams.RANSACCostThresh = 2;
+optParams.RANSACCostThresh = 0.5*(0.1)^2;
 optParams.maxGNIter = 10;
 optParams.lineLambda = 0.75;
 optParams.LMlambda = 1e-5;
@@ -79,7 +83,6 @@ ha2 = axes('Position',[0.05,0.05,0.9,0.6]);
 axis equal, grid on, hold on;
 %%
 
-
 % init matcher
 matcherMex('init',param);
 
@@ -100,7 +103,9 @@ xState = xInit;
  
 k =1;
 T_wcam = eye(4);
-for frame=first_frame+1:1:last_frame
+T_wcam_hist = T_wcam;
+
+for frame=first_frame+1:1:last_frame-1
   
   % 1-index
   
@@ -111,6 +116,9 @@ for frame=first_frame+1:1:last_frame
      
    I1 = I1(1:478, :);
    I2 = I2(1:478, :);
+   
+   bm = blurMetric(I1);
+
  
    %IMU data
    currentViTime = bagImageLeftVIData{frame}.header.stamp.time;
@@ -125,78 +133,196 @@ for frame=first_frame+1:1:last_frame
    end
    %xState.q = q_wimu
    C_21_imu_est = rotmat_from_quat(xState.q)'*rotmat_from_quat(xPrevState.q);
-   C_21_est = T_camimu(1:3,1:3)*C_21_imu_est*T_camimu(1:3,1:3)'
+   C_21_est = T_camimu(1:3,1:3)*C_21_imu_est*T_camimu(1:3,1:3)';
 
     
   %Show image
   axes(ha1); cla;
   imagesc(I1);
-  axis off; colorma
+  axis off; colormap(gray);
   
     matcherMex('push',I1,I2); 
     % match images
     matcherMex('match',2);
     p_matched = matcherMex('get_matches',2);
-    % show matching results
-    disp(['Number of matched points: ' num2str(length(p_matched))]);
 
     % showMatchedFeatures(I1, I2, p_matched(1:2,:)', p_matched(3:4,:)');
     % drawnow;
 
          %Triangulate points and prune any at Infinity
-    [p_f1_1, p_f2_2] = triangulateAllPointsDirect(p_matched, calibParams);
+    selectIdx = randperm(size(p_matched,2), 200);
+    [p_f1_1, p_f2_2] = triangulateAllPointsDirect(p_matched(:,selectIdx), calibParams);
+    
     pruneId = isinf(p_f1_1(1,:)) | isinf(p_f1_1(2,:)) | isinf(p_f1_1(3,:)) | isinf(p_f2_2(1,:)) | isinf(p_f2_2(2,:)) | isinf(p_f2_2(3,:));
     p_f1_1 = p_f1_1(:, ~pruneId);
     p_f2_2 = p_f2_2(:, ~pruneId);
-    
-    %Select a random subset of 100
-    selectIdx = randperm(size(p_f1_1,2),100);
-    p_f1_1 = p_f1_1(:, selectIdx);
-    p_f2_2 = p_f2_2(:, selectIdx);
+ 
 
     %Find inliers based on rotation matrix from IMU
-    [p_f1_1, p_f2_2] = findInliersRot(p_f1_1, p_f2_2, C_21_est, optParams);
- fprintf('Tracking %d features.', size(p_f1_1,2));
+    
+    [p_f1_1, p_f2_2, T_21_est] = findInliersRot(p_f1_1, p_f2_2, C_21_est, optParams,calibParams);
+    %T_21_cam_best = scalarWeightedPointCloudAlignment(p_f1_1, p_f2_2, C_21_est);
+    fprintf('Tracking %d features. \n', size(p_f1_1,2));
     
     %Calculate initial guess using scalar weights, then use matrix weighted
     %non linear optimization
-    R_1 = repmat(R, [1 1 size(p_f1_1, 2)]);
+    if bm > 0.4
+        R_pix = R;
+        disp('Blurry brah!');
+    else
+        R_pix = R;
+    end
+    
+    R_1 = repmat(R_pix, [1 1 size(p_f1_1, 2)]);
     R_2 = R_1;
-    T_21_est = scalarWeightedPointCloudAlignment(p_f1_1, p_f2_2, C_21_est);
     T_21_opt = matrixWeightedPointCloudAlignment(p_f1_1, p_f2_2, R_1, R_2, T_21_est, calibParams, optParams);
-
-        T_wcam = T_wcam*inv(T_21_opt);
-        % update trajectory
+    
+        
+    T_wcam = T_wcam*inv(T_21_opt);
+    T_wcam_hist(:,:,end+1) = T_wcam;
+    
+    % update trajectory
          axes(ha2);
-        plot(T_wcam(1,4),T_wcam(3,4),'g*');
+        plot(T_wcam(1,4),T_wcam(3,4),'b*');
          hold on;
+        %plot(p_camw_w_gt(1, frame-1),p_camw_w_gt(3, frame-1),'g*');
          grid on;
          drawnow();
-        k = k + 1
+        k = k + 1;
+        fprintf('k:%d \n',k);
 end
 
+T_wcam(1:3,4)
+norm(T_wcam(1:3,4))
 % close matcher
 matcherMex('close');
 
-%%
-addpath('extraction/utils')
-figure
-T_p1_hist = [];
-for v_i = 1:length(bagViconData)
-    t = bagViconData{v_i}.transform.translation;
-    q = bagViconData{v_i}.transform.rotation;
-    if v_i == 0
-        T_g1 = [quatToRotMat(q)' t; 0 0 0 1]; 
-        T_p1_hist(:,:, v_i) = eye(4);
-    else
-        T_p1_hist(:,:, v_i) = [quatToRotMat(q)' t; 0 0 0 1];
-    end
+%% Load 'ground truth'
+% load('1loopGT.mat');
+% 
+% %Calculate statistics and plot
+% totalDist = 0;
+% frameRange = 1:1:last_frame-2;
+% for j = frameRange
+%     if j > 1
+%         totalDist = totalDist + norm(p_camw_w_gt(:,j) - p_camw_w_gt(:,j-1));
+%     end
+% end
+% translation = NaN(3, size(T_wcam_hist, 3));
+% for i = 1:size(T_wcam_hist, 3)
+%     T_wcam =  T_wcam_hist(:, :, i);
+%     translation(:,i) = T_wcam(1:3, 4);
+% end
+% %Plot error and variances
+% transErrVec = zeros(3, length(frameRange));
+% 
+% for i = frameRange
+%     transErrVec(:,i) = translation(:, i) - p_camw_w_gt(:,i);
+% end
+% 
+% meanRMSE = mean(sqrt(sum(transErrVec.^2,1)/3));
+% 
+% 
+% % 
+% figure
+% plot(translation(1,:),translation(3,:), '-b');
+%  hold on;
+% plot(p_camw_w_gt(1,frameRange),p_camw_w_gt(3,frameRange), '-g');
+% title(sprintf('VI Sensor - ARMSE: %.5f, Dist: %.5f m', meanRMSE, totalDist), 'Interpreter', 'none');
+% xlabel('x');
+% ylabel('y');
+% zlabel('z');
+% grid on;
+% legend('Optimized','Ground Truth');
+
+
+
+%% Calculate Blur Metric
+% addpath('learning');
+% bmHist = [];
+% for frame=first_frame+1:1:last_frame
+%   
+%   
+%   % read current images
+%    I1 = uint8(reshape(bagImageLeftVIData{frame}.data, viImageSize(1), viImageSize(2))');
+%    I2 = uint8(reshape(bagImageRightVIData{frame}.data, viImageSize(1), viImageSize(2))');
+%    I1 = I1(1:478, :);
+%    I2 = I2(1:478, :);
+%     bm = blurMetric(I1);
+%     bmHist(end+1) = bm;
+% end
+% plot(bmHist);
+%% Plot VICON Data if desired
+% addpath('extraction/utils')
+% figure
+% T_p1_hist = [];
+% for v_i = 1:length(bagViconData)
+%     t = bagViconData{v_i}.transform.translation;
+%     q = bagViconData{v_i}.transform.rotation;
+%     if v_i == 0
+%         T_g1 = [quatToRotMat(q)' t; 0 0 0 1]; 
+%         T_p1_hist(:,:, v_i) = eye(4);
+%     else
+%         T_p1_hist(:,:, v_i) = [quatToRotMat(q)' t; 0 0 0 1];
+%     end
+% end
+% 
+% t_p1_hist = [];
+% for v_i = 1:length(bagViconData)
+%     t_p1_hist(:, v_i) = T_p1_hist(1:3, 4, v_i);
+% end
+% plot(t_p1_hist(1,:), t_p1_hist(2,:), '*')
+
+%% Cluster data
+addpath('learning');
+bmHist = [];
+allPredVectors = []
+for frame=first_frame+1:1:last_frame
+    frame
+   % read current images
+   I1 = (reshape(bagImageLeftVIData{frame}.data, viImageSize(1), viImageSize(2))');
+   %I2 = (reshape(bagImageRightVIData{frame}.data, viImageSize(1), viImageSize(2))');
+   I1 = I1(1:478, :);
+   %I2 = I2(1:478, :);
+    
+    keyPoints = detectSURFFeatures(mat2gray(I1));
+    keyPointPixels = keyPoints.Location(:,:)';
+     currentViTime = bagImageLeftVIData{frame}.header.stamp.time;
+
+    %Computes Prediction Space points based on the image and keypoint position
+    imu_i = findClosestTimestamp(imageTimestamp, imuData.timestamps);
+    imuAccel = imuData.measAccel(:, imu_i);
+    imuOmega = imuData.measOmega(:, imu_i);
+    imuDataRecord = [imuAccel; imuOmega];
+    
+    predVectors = computePredVectors(keyPointPixels, I1, imuDataRecord);
+    allPredVectors = [allPredVectors predVectors];
+
 end
 
-t_p1_hist = [];
-for v_i = 1:length(bagViconData)
-    t_p1_hist(:, v_i) = T_p1_hist(1:3, 4, v_i);
+[idx, C,~,D] = kmeans(allPredVectors', numClusters);
+
+
+[COEFF,SCORE, latent] = princomp(allPredVectors');
+latent
+COEFF
+
+
+%Determine the mean distance of points within a cluster to the cluster's centroid
+%This sets boundaries
+
+meanCentroidDists = zeros(numClusters, 1);
+predVectorsWithinBoundaries = 0;
+for ic = 1:numClusters
+    meanCentroidDists(ic) = Km*mean(D(idx == ic, ic));
+    predVectorsWithinBoundaries = predVectorsWithinBoundaries + sum(D(idx == ic, ic) < meanCentroidDists(ic));
 end
-plot(t_p1_hist(1,:), t_p1_hist(2,:), '*')
+
+inFraction = predVectorsWithinBoundaries/size(allPredVectors,2);
+
+clusteringModel.clusterNum = numClusters;
+clusteringModel.centroids = C';
+clusteringModel.threshDists = meanCentroidDists;
+
 
 

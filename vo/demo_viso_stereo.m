@@ -2,7 +2,7 @@
 disp('===========================');
 addpath('vo');
 addpath('~/Dropbox/PhD/Code/MATLAB/matlab_rosbag-0.4-mac64/');
-rosBagFileName = '~/Desktop/Pioneer-VI/2015-01-28-16-11-17_1loop.bag';
+rosBagFileName = '~/Desktop/Pioneer-VI/2015-02-13-18-29-39-fwbw.bag';
 viRightCamTopic = '/right/image_rect';
 viLeftCamTopic = '/left/image_rect';
 
@@ -81,6 +81,20 @@ end
 
 % release visual odometry
 visualOdometryStereoMex('close');
+%%
+norm(Tr_total{end}(1:3, 4))
+Tr_total{end}(1:3, 4)
+
+p_camw_w_gt = NaN(3, length(Tr_total));
+for i = 1:length(Tr_total)
+    p_camw_w_gt(:, i) = Tr_total{i}(1:3,4);
+end
+
+
+save('1loopGT.mat', 'p_camw_w_gt');
+
+
+
 %%
 fprintf('Final displacement: %.5f \n', norm(Tr_total{end}(1:3,4)));
 
