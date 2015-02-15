@@ -7,7 +7,7 @@ addpath('utils');
 addpath('learning');
 
 addpath('~/Dropbox/PhD/Code/MATLAB/matlab_rosbag-0.4-mac64/');
-rosBagFileName = '~/Desktop/Pioneer-VI/2015-02-13-18-29-39-fwbw.bag';
+rosBagFileName = '~/Desktop/Pioneer-VI/2015-02-13-18-28-05-1loop.bag';
 viRightCamTopic = '/right/image_rect';
 viLeftCamTopic = '/left/image_rect';
 viconTopic = '/vicon/Pioneer1/Base';
@@ -78,10 +78,16 @@ end
 % create figure
 figure('Color',[1 1 1]);
 ha1 = axes('Position',[0.05,0.7,0.9,0.25]);
+gt = load('2015-02-13-18-28-05-1loop_GroundTruth.mat');
+gt.
+
 %axis off;
 ha2 = axes('Position',[0.05,0.05,0.9,0.6]);
 axis equal, grid on, hold on;
+
 %%
+repeatIter =  10;
+for repeat_i = 1:repeatIter
 
 % init matcher
 matcherMex('init',param);
@@ -132,14 +138,13 @@ for frame=first_frame+1:1:last_frame-1
         [xState] = integrateIMU(xState, imuDataWindow(1:3, imusub_i-1), imuDataWindow(4:6, imusub_i-1), dt, zeros(3,1));
    end
    %xState.q = q_wimu
+   
+   
    C_21_imu_est = rotmat_from_quat(xState.q)'*rotmat_from_quat(xPrevState.q);
    C_21_est = T_camimu(1:3,1:3)*C_21_imu_est*T_camimu(1:3,1:3)';
 
     
-  %Show image
-  axes(ha1); cla;
-  imagesc(I1);
-  axis off; colormap(gray);
+
   
     matcherMex('push',I1,I2); 
     % match images
@@ -150,33 +155,49 @@ for frame=first_frame+1:1:last_frame-1
     % drawnow;
 
          %Triangulate points and prune any at Infinity
-    selectIdx = randperm(size(p_matched,2), 200);
-    [p_f1_1, p_f2_2] = triangulateAllPointsDirect(p_matched(:,selectIdx), calibParams);
+    selectIdx = randperm(size(p_matched,2), 25);
+    p_matched = p_matched(:,selectIdx);
+    [p_f1_1, p_f2_2] = triangulateAllPointsDirect(p_matched, calibParams);
+    %[predVectors] = computePredVectors( p_matched(1:2,:), I1, imuDataWindow(:,end));
+%     clusterIds = getClusterIds(predVectors, clusteringModel);
+%     
+%     clusterNo = 2;
+%     p_f1_1 = p_f1_1(:, clusterIds==clusterNo);
+%     p_f2_2 = p_f2_2(:, clusterIds==clusterNo);
     
-    pruneId = isinf(p_f1_1(1,:)) | isinf(p_f1_1(2,:)) | isinf(p_f1_1(3,:)) | isinf(p_f2_2(1,:)) | isinf(p_f2_2(2,:)) | isinf(p_f2_2(3,:));
-    p_f1_1 = p_f1_1(:, ~pruneId);
-    p_f2_2 = p_f2_2(:, ~pruneId);
+    
+      %Show image
+  axes(ha1); cla;
+  imagesc(I1);
+  axis off; colormap(gray);
+  %hold on;
+  %plot(p_matched(1,clusterIds==clusterNo), p_matched(2,clusterIds==clusterNo), 'o');
+    
+     pruneId = isinf(p_f1_1(1,:)) | isinf(p_f1_1(2,:)) | isinf(p_f1_1(3,:)) | isinf(p_f2_2(1,:)) | isinf(p_f2_2(2,:)) | isinf(p_f2_2(3,:));
+     p_f1_1 = p_f1_1(:, ~pruneId);
+     p_f2_2 = p_f2_2(:, ~pruneId);
  
 
     %Find inliers based on rotation matrix from IMU
-    
-    [p_f1_1, p_f2_2, T_21_est] = findInliersRot(p_f1_1, p_f2_2, C_21_est, optParams,calibParams);
-    %T_21_cam_best = scalarWeightedPointCloudAlignment(p_f1_1, p_f2_2, C_21_est);
+    %[p_f1_1, p_f2_2, T_21_est] = findInliersRot(p_f1_1, p_f2_2, C_21_est, optParams,calibParams);
+    T_21_est = scalarWeightedPointCloudAlignment(p_f1_1, p_f2_2, C_21_est);
     fprintf('Tracking %d features. \n', size(p_f1_1,2));
     
     %Calculate initial guess using scalar weights, then use matrix weighted
     %non linear optimization
     if bm > 0.4
         R_pix = R;
-        disp('Blurry brah!');
     else
         R_pix = R;
     end
     
-    R_1 = repmat(R_pix, [1 1 size(p_f1_1, 2)]);
-    R_2 = R_1;
-    T_21_opt = matrixWeightedPointCloudAlignment(p_f1_1, p_f2_2, R_1, R_2, T_21_est, calibParams, optParams);
-    
+    if size(p_f1_1, 2) > 4
+        R_1 = repmat(R_pix, [1 1 size(p_f1_1, 2)]);
+        R_2 = R_1;
+        T_21_opt = matrixWeightedPointCloudAlignment(p_f1_1, p_f2_2, R_1, R_2, T_21_est, calibParams, optParams);
+    else
+        T_21_opt = eye(4);
+    end
         
     T_wcam = T_wcam*inv(T_21_opt);
     T_wcam_hist(:,:,end+1) = T_wcam;
@@ -196,6 +217,8 @@ T_wcam(1:3,4)
 norm(T_wcam(1:3,4))
 % close matcher
 matcherMex('close');
+
+end
 
 %% Load 'ground truth'
 % load('1loopGT.mat');
@@ -274,55 +297,59 @@ matcherMex('close');
 % plot(t_p1_hist(1,:), t_p1_hist(2,:), '*')
 
 %% Cluster data
-addpath('learning');
-bmHist = [];
-allPredVectors = []
-for frame=first_frame+1:1:last_frame
-    frame
-   % read current images
-   I1 = (reshape(bagImageLeftVIData{frame}.data, viImageSize(1), viImageSize(2))');
-   %I2 = (reshape(bagImageRightVIData{frame}.data, viImageSize(1), viImageSize(2))');
-   I1 = I1(1:478, :);
-   %I2 = I2(1:478, :);
-    
-    keyPoints = detectSURFFeatures(mat2gray(I1));
-    keyPointPixels = keyPoints.Location(:,:)';
-     currentViTime = bagImageLeftVIData{frame}.header.stamp.time;
-
-    %Computes Prediction Space points based on the image and keypoint position
-    imu_i = findClosestTimestamp(imageTimestamp, imuData.timestamps);
-    imuAccel = imuData.measAccel(:, imu_i);
-    imuOmega = imuData.measOmega(:, imu_i);
-    imuDataRecord = [imuAccel; imuOmega];
-    
-    predVectors = computePredVectors(keyPointPixels, I1, imuDataRecord);
-    allPredVectors = [allPredVectors predVectors];
-
-end
-
-[idx, C,~,D] = kmeans(allPredVectors', numClusters);
-
-
-[COEFF,SCORE, latent] = princomp(allPredVectors');
-latent
-COEFF
-
-
-%Determine the mean distance of points within a cluster to the cluster's centroid
-%This sets boundaries
-
-meanCentroidDists = zeros(numClusters, 1);
-predVectorsWithinBoundaries = 0;
-for ic = 1:numClusters
-    meanCentroidDists(ic) = Km*mean(D(idx == ic, ic));
-    predVectorsWithinBoundaries = predVectorsWithinBoundaries + sum(D(idx == ic, ic) < meanCentroidDists(ic));
-end
-
-inFraction = predVectorsWithinBoundaries/size(allPredVectors,2);
-
-clusteringModel.clusterNum = numClusters;
-clusteringModel.centroids = C';
-clusteringModel.threshDists = meanCentroidDists;
-
-
-
+% addpath('learning');
+% bmHist = [];
+% allPredVectors = [];
+% for frame=first_frame+1:1:last_frame-2
+%     frame
+%    % read current images
+%    I1 = (reshape(bagImageLeftVIData{frame}.data, viImageSize(1), viImageSize(2))');
+%    %I2 = (reshape(bagImageRightVIData{frame}.data, viImageSize(1), viImageSize(2))');
+%    I1 = I1(1:478, :);
+%    %I2 = I2(1:478, :);
+%     
+%     keyPoints = detectSURFFeatures(mat2gray(I1));
+%     keyPointPixels = keyPoints.Location(:,:)';
+%     currentViTime = bagImageLeftVIData{frame}.header.stamp.time;
+% 
+%     %Computes Prediction Space points based on the image and keypoint position
+%     imu_i = findClosestTimestamp(currentViTime, imuDataTimeStamps);
+%     imuDataRecord = imuData(:, imu_i);
+%     
+%     predVectors = computePredVectors(keyPointPixels, I1, imuDataRecord);
+%     allPredVectors = [allPredVectors predVectors];
+% 
+% end
+% 
+% 
+% numClusters = 3;
+% Km = 1.5;
+% [idx, C,~,D] = kmeans(allPredVectors', numClusters);
+% 
+% 
+% [COEFF,SCORE, latent] = princomp(allPredVectors');
+% latent
+% COEFF
+% 
+% 
+% % Determine the mean distance of points within a cluster to the cluster's centroid
+% % This sets boundaries
+% 
+% meanCentroidDists = zeros(numClusters, 1);
+% predVectorsWithinBoundaries = 0;
+% for ic = 1:numClusters
+%     meanCentroidDists(ic) = Km*mean(D(idx == ic, ic));
+%     predVectorsWithinBoundaries = predVectorsWithinBoundaries + sum(D(idx == ic, ic) < meanCentroidDists(ic));
+% end
+% 
+% inFraction = predVectorsWithinBoundaries/size(allPredVectors,2);
+% 
+% clusteringModel.clusterNum = numClusters;
+% clusteringModel.centroids = C';
+% clusteringModel.threshDists = meanCentroidDists;
+% 
+% save('cluster.mat', 'clusteringModel');
+% 
+% 
+% 
+% eva = evalclusters(allPredVectors','kmeans','CalinskiHarabasz','KList',[1:10])

@@ -1,4 +1,3 @@
-% Sliding Window Gauss Newton Optimization
 % %%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 close all;
 clear all;

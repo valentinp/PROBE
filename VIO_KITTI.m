@@ -3,11 +3,11 @@ addpath('vo');
 addpath('extraction/utils');
 addpath('extraction/utils/devkit');
 addpath('utils');
-dataBaseDir = '/Volumes/STARSExFAT/KITTI/2011_09_30/2011_09_30_drive_0027_sync';
-dataCalibDir = '/Volumes/STARSExFAT/KITTI/2011_09_30';
+dataBaseDir = '/Users/valentinp/Desktop/KITTI/2011_09_26/2011_09_26_drive_0095_sync';
+dataCalibDir = '/Users/valentinp/Desktop/KITTI/2011_09_26';
 
 %% Get ground truth and import data
-frameRange = 1:1100;
+frameRange = 1:266;
 %Image data
 leftImageData = loadImageData([dataBaseDir '/image_00'], frameRange);
 rightImageData = loadImageData([dataBaseDir '/image_01'], frameRange);
@@ -80,6 +80,10 @@ ha1 = axes('Position',[0.05,0.7,0.9,0.25]);
 ha2 = axes('Position',[0.05,0.05,0.9,0.6]);
 axis equal, grid on, hold on;
 
+repeatIter =  25;
+meanRMSEHist = [];
+for repeat_i = 1:repeatIter
+rng('shuffle');
 % init matcher
 matcherMex('init',param);
 % push back first images
@@ -116,9 +120,9 @@ for frame=2:skipFrames:numFrames
     I2 = uint8(rightImageData.rectImages(:,:,frame));
  
       %Plot image
-      axes(ha1); cla;
-      imagesc(I1);
-      axis off;
+%       axes(ha1); cla;
+%       imagesc(I1);
+%       axis off;
 
     matcherMex('push',I1,I2); 
     % match images
@@ -134,14 +138,14 @@ for frame=2:skipFrames:numFrames
     p_f2_2 = p_f2_2(:, ~pruneId);
     
     %Select a random subset of 100
-    selectIdx = randperm(size(p_f1_1,2),100);
+    selectIdx = randperm(size(p_f1_1,2),25);
     p_f1_1 = p_f1_1(:, selectIdx);
     p_f2_2 = p_f2_2(:, selectIdx);
 
     %Find inliers based on rotation matrix from IMU
     [p_f1_1, p_f2_2] = findInliersRot(p_f1_1, p_f2_2, T_21_cam(1:3,1:3), optParams);
 
-    fprintf('Tracking %d features.', size(p_f1_1,2));
+    %fprintf('Tracking %d features.', size(p_f1_1,2));
     
     %Calculate initial guess using scalar weights, then use matrix weighted
     %non linear optimization
@@ -155,10 +159,10 @@ for frame=2:skipFrames:numFrames
     T_wcam_hist(:,:,end+1) = T_wcam;
     
     % update trajectory and plot
-    axes(ha2);
-    plot(T_wcam(1,4),T_wcam(3,4),'g*');
-    hold on;
-    grid on;
+%     axes(ha2);
+%     plot(T_wcam(1,4),T_wcam(3,4),'g*');
+%     hold on;
+%     grid on;
 
     drawnow();
     k = k + 1
@@ -167,6 +171,26 @@ end
 % close matcher
 matcherMex('close');
 
+p_vi_i = NaN(3, size(T_wCam_GT,3));
+for j = frameRange
+    T_wcam_gt =  inv(T_wCam_GT(:,:,1))*T_wCam_GT(:,:, j);
+    p_vi_i(:,j) = T_wcam_gt(1:3,4);
+end
+translation = NaN(3, size(T_wcam_hist, 3));
+for i = 1:size(T_wcam_hist, 3)
+    T_wcam =  T_wcam_hist(:, :, i);
+    translation(:,i) = T_wcam(1:3, 4);
+end
+
+%Plot error and variances
+transErrVec = zeros(3, length(frameRange));
+for i = frameRange
+    transErrVec(:,i) = translation(:, i) - p_vi_i(:,i);
+end
+meanRMSE = mean(sqrt(sum(transErrVec.^2,1)/3));
+meanRMSEHist(end+1) = meanRMSE
+end
+meanRMSEHist
 %% IMU Only Integration
 %Begin integration
 xInit.p = zeros(3,1);

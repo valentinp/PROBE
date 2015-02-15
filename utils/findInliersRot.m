@@ -2,7 +2,7 @@ function [p_f1_1, p_f2_2,T_21_cam_best] = findInliersRot(p_f1_1, p_f2_2, C_21, o
 %FINDINLIERS 
 
 if size(p_f1_1, 2) < 4
-    T_21_cam_best = scalarWeightedPointCloudAlignment(p_f1_1, p_f2_2, C_21_est);
+    T_21_cam_best = scalarWeightedPointCloudAlignment(p_f1_1, p_f2_2, C_21);
     return;
 end
 

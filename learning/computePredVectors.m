@@ -6,8 +6,8 @@ function [predVectors] = computePredVectors( pixelLocations, image, imuData)
 
 usePredDims = [1; ... %u
                1; ... %v
-               1; ... %x contrast
-               1; ... %y contrast
+               0; ... %x contrast
+               0; ... %y contrast
                1; ... % entropy
                1; ... % mag(accel)
                1; ... % mag(omega)
