@@ -180,8 +180,8 @@ for frame=first_frame+1:1:last_frame
  
 
     %Find inliers based on rotation matrix from IMU
-    %[p_f1_1, p_f2_2, T_21_est] = findInliersRot(p_f1_1, p_f2_2, C_21_est, optParams,calibParams);
-    T_21_est = scalarWeightedPointCloudAlignment(p_f1_1, p_f2_2, C_21_est);
+    [p_f1_1, p_f2_2, T_21_est] = findInliersRot(p_f1_1, p_f2_2, C_21_est, optParams,calibParams);
+    %T_21_est = scalarWeightedPointCloudAlignment(p_f1_1, p_f2_2, C_21_est);
     %fprintf('Tracking %d features. \n', size(p_f1_1,2));
     
     %Calculate initial guess using scalar weights, then use matrix weighted

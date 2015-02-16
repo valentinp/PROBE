@@ -1,14 +1,14 @@
 % demonstrates stereo visual odometry on an image sequence
 disp('===========================');
-addpath('vo');
-addpath('extraction/utils');
-addpath('extraction/utils/devkit');
-addpath('utils');
-dataBaseDir = '/Users/valentinp/Desktop/KITTI/2011_09_26/2011_09_26_drive_0095_sync';
+addpath('../extraction/utils');
+addpath('../extraction/utils/devkit');
+addpath('../utils');
+
+dataBaseDir = '/Users/valentinp/Desktop/KITTI/2011_09_26/2011_09_26_drive_0005_sync';
 dataCalibDir = '/Users/valentinp/Desktop/KITTI/2011_09_26';
 
 %% Get ground truth and import data
-frameRange = 1:266;
+frameRange = 1:150;
 %Image data
 leftImageData = loadImageData([dataBaseDir '/image_00'], frameRange);
 rightImageData = loadImageData([dataBaseDir '/image_01'], frameRange);
@@ -176,7 +176,7 @@ for i = frameRange
     transErrVec(:,i) = translation(:, i) - p_vi_i(:,i);
     transErrVecIMU(:,i) = translation_imu(:, i) - p_vi_i(:,i);
 end
-
+finalErrorNorm = norm(transErrVec(:,end))
 meanRMSE = mean(sqrt(sum(transErrVec.^2,1)/3));
 meanRMSEIMU = mean(sqrt(sum(transErrVecIMU.^2,1)/3));
 

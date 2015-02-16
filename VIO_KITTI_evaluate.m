@@ -11,6 +11,7 @@ frameRange = 1:150;
 %Image data
 leftImageData = loadImageData([dataBaseDir '/image_00'], frameRange);
 rightImageData = loadImageData([dataBaseDir '/image_01'], frameRange);
+%%
 %IMU data
 [imuData, imuFrames] = loadImuData(dataBaseDir, leftImageData.timestamps);
 %Ground Truth
@@ -64,31 +65,31 @@ param.refinement             = 0;   % refinement (0=none,1=pixel,2=subpixel)
 %% Setup
 addpath('settings');
 addpath('utils');
+addpath('learning');
+useWeights = false;
 
 R = diag(16*ones(4,1));
 optParams.RANSACCostThresh = 3;
 optParams.maxGNIter = 10;
-optParams.lineLambda = 0.5;
+optParams.lineLambda = 0.75;
 optParams.LMlambda = 1e-5;
+
+
+%% Load model
+load('learnedProbeModels/2011_09_26_drive_0005_sync_learnedPredSpace.mat');
+searchObject = KDTreeSearcher(learnedPredSpace.predVectors');
+refWeight = mean(learnedPredSpace.weights);
 
 %% Main loop
 
 % create figure
-% figure('Color',[1 1 1]);
-% ha1 = axes('Position',[0.05,0.7,0.9,0.25]);
-% %axis off;
-% ha2 = axes('Position',[0.05,0.05,0.9,0.6]);
-% axis equal, grid on, hold on;
+figure('Color',[1 1 1]);
+ha1 = axes('Position',[0.05,0.7,0.9,0.25]);
+%axis off;
+ha2 = axes('Position',[0.05,0.05,0.9,0.6]);
+axis equal, grid on, hold on;
 
-repeatIter =  50;
-learnedPredSpace.predVectors = [];
-learnedPredSpace.weights = [];
-p_wcam_hist = NaN(3,length(frameRange), repeatIter);
-
-for repeat_i = 1:repeatIter
-    
-usedPredVectors = [];
-rng('shuffle');
+rng(42);
 % init matcher
 matcherMex('init',param);
 % push back first images
@@ -100,7 +101,6 @@ numFrames = size(leftImageData.rectImages, 3);
 k =1;
 T_wcam = eye(4);
 T_wcam_hist = T_wcam;
-p_wcam_hist(:, 1, repeat_i) = zeros(3,1);
 
 % history variables
 firstState.C_vi = eye(3);
@@ -125,10 +125,7 @@ for frame=2:skipFrames:numFrames
     I1 = uint8(leftImageData.rectImages(:,:,frame));
     I2 = uint8(rightImageData.rectImages(:,:,frame));
  
-      %Plot image
-%       axes(ha1); cla;
-%       imagesc(I1);
-%       axis off;
+ 
 
     matcherMex('push',I1,I2); 
     % match images
@@ -137,47 +134,65 @@ for frame=2:skipFrames:numFrames
     % show matching results
     %disp(['Number of matched points: ' num2str(length(p_matched))]);
 
+
+      
+      
     %Triangulate points and prune any at Infinity
     [p_f1_1, p_f2_2] = triangulateAllPointsDirect(p_matched, calibParams);
-    pruneId = isinf(p_f1_1(1,:)) | isinf(p_f1_1(2,:)) | isinf(p_f1_1(3,:)) | isinf(p_f2_2(1,:)) | isinf(p_f2_2(2,:)) | isinf(p_f2_2(3,:));
+    pruneId =  p_matched(1,:) > 600 | isinf(p_f1_1(1,:)) | isinf(p_f1_1(2,:)) | isinf(p_f1_1(3,:)) | isinf(p_f2_2(1,:)) | isinf(p_f2_2(2,:)) | isinf(p_f2_2(3,:));
     p_f1_1 = p_f1_1(:, ~pruneId);
     p_f2_2 = p_f2_2(:, ~pruneId);
     
     %Select a random subset of 100
-    selectIdx = randperm(size(p_f1_1,2), 10);
+    selectIdx = randperm(size(p_f1_1,2), 25);
     p_f1_1 = p_f1_1(:, selectIdx);
     p_f2_2 = p_f2_2(:, selectIdx);
     p_matched = p_matched(:, selectIdx);
-    inliers = 1:size(p_f1_1,2);
-
-    %Find inliers based on rotation matrix from IMU
-     %[p_f1_1, p_f2_2, T_21_est, inliers] = findInliersRot(p_f1_1, p_f2_2, T_21_cam(1:3,1:3), optParams);
-    [predVectors] = computePredVectors( p_matched(1:2,inliers), I1, [imuData.measAccel(:, frame-1); imuData.measOmega(:, frame-1)]);
-    usedPredVectors(:,end+1:end+size(predVectors, 2)) = predVectors;
-    %fprintf('Tracking %d features.', size(p_f1_1,2));
     
-    %Calculate initial guess using scalar weights, then use matrix weighted
-    %non linear optimization
+    
+    %Find inliers based on rotation matrix from IMU
+    %[p_f1_1, p_f2_2, T_21_est, inliers] = findInliersRot(p_f1_1, p_f2_2, T_21_cam(1:3,1:3), optParams);
+    %[p_f1_1, p_f2_2, T_21_est, inliers] = findInliersRANSAC(p_f1_1, p_f2_2, optParams);
+    
+             %Plot image
+%       axes(ha1); cla;
+%       %imagesc(I1);
+%       %hold on;
+%       showMatchedFeatures(I1,I2,p_matched(5:6,inliers)', p_matched(7:8,inliers)'); 
+%       axis off;
+      
 
-    R_1 = repmat(R, [1 1 size(p_f1_1, 2)]);
-    R_2 = R_1;
+    inliers = 1:size(p_f1_1,2);
+    %If desired find optimal weight for each observation.
+    if useWeights
+        [predVectors] = computePredVectors( p_matched(1:2,inliers), I1, [imuData.measAccel(:, frame-1); imuData.measOmega(:, frame-1)]);
+        R_1 = NaN(4,4, length(inliers));
+        predWeightList = NaN(1, length(inliers));
+        for p_i = 1:length(inliers)
+            predWeight = getPredVectorWeight(predVectors(:,p_i), searchObject, learnedPredSpace.weights, refWeight);
+            R_1(:,:,p_i) = predWeight*R;
+            predWeightList(p_i) = predWeight;
+        end
+        fprintf('mean pred weight: %.5f \n',mean(predWeight));
+        R_2 = R_1;
+    else
+        R_1 = repmat(R, [1 1 size(p_f1_1, 2)]);
+        R_2 = R_1;
+    end
     T_21_est = scalarWeightedPointCloudAlignment(p_f1_1, p_f2_2,T_21_cam(1:3,1:3));
     T_21_opt = matrixWeightedPointCloudAlignment(p_f1_1, p_f2_2, R_1, R_2, T_21_est, calibParams, optParams);
-
-
+    
     T_wcam = T_wcam*inv(T_21_opt);
     T_wcam_hist(:,:,end+1) = T_wcam;
     
-    p_wcam_hist(:, frame, repeat_i) = T_wcam(1:3,4);
-    
     % update trajectory and plot
-%     axes(ha2);
-%     plot(T_wcam(1,4),T_wcam(3,4),'g*');
-%     hold on;
-%     grid on;
-%    drawnow();
+    axes(ha2);
+    plot(T_wcam(1,4),T_wcam(3,4),'g*');
+    hold on;
+    grid on;
+   drawnow();
     k = k + 1;
-    fprintf('k:%d, repeat_i: %d \n',k,repeat_i);
+    fprintf('k: %d \n',k);
 end
 
 % close matcher
@@ -200,56 +215,15 @@ for i = frameRange
     transErrVec(:,i) = translation(:, i) - p_vi_i(:,i);
 end
 meanRMSE = mean(sqrt(sum(transErrVec.^2,1)/3))
-
-%Update the prediction space learning
- learnedPredSpace.predVectors = [learnedPredSpace.predVectors usedPredVectors];
- learnedPredSpace.weights = [learnedPredSpace.weights meanRMSE*ones(1, size(usedPredVectors,2))];
-
-
-end
-learnedPredSpace
-
-%%
-f = strsplit(dataBaseDir, '/');
-f = strsplit(char(f(end)), '.');
-fileName = [char(f(1)) '_learnedPredSpace.mat'];
-save(fileName, 'learnedPredSpace');
+finalErrorNorm = norm(transErrVec(:,end))
 
 %% Create Search Tree
-
-% searcherObject = KDTreeSearcher(predVectorSpace.predVectors');
-
-
-%% Plot trajectories
-totalDist = 0;
-p_wcam_w_gt = NaN(3, size(T_wCam_GT,3));
-for j = frameRange
-    if j > 1
-        T_12 = inv(T_wCam_GT(:,:,j-1))*T_wCam_GT(:,:, j);
-        totalDist = totalDist + norm(T_12(1:3,4));
-    end
-    T_wcam_gt =  inv(T_wCam_GT(:,:,1))*T_wCam_GT(:,:, j);
-    p_wcam_w_gt(:,j) = T_wcam_gt(1:3,4);
-end
-
-figure
-for p_i = 1:size(p_wcam_hist,3)
-    plot(p_wcam_hist(1,:,p_i),p_wcam_hist(3,:,p_i), '-b', 'LineWidth', 1);
-    hold on;
-end
-plot(p_wcam_w_gt(1,:),p_wcam_w_gt(3,:), '-r', 'LineWidth', 2);
 f = strsplit(dataBaseDir, '/');
 f = strsplit(char(f(end)), '.');
 fileName = char(f(1));
+save(sprintf('plots/%s_noMore600Path.mat', fileName), 'translation');
 
-title(sprintf('Training Runs \n %s', fileName), 'Interpreter', 'none')
-xlabel('x [m]')
-ylabel('z [m]')
-xlim([-20 10])
-%legend('Training Runs', 'Ground Truth')
-grid on;
-saveas(gcf,sprintf('plots/%s_training.fig', fileName));
-save(sprintf('plots/%s_paths.mat', fileName), 'p_wcam_hist', 'p_wcam_w_gt');
+
 
 %% IMU Only Integration
 %Begin integration

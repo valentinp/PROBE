@@ -1,4 +1,4 @@
-function [p_f1_1, p_f2_2, T_21_cam_best] = findInliersRANSAC(p_f1_1, p_f2_2, optParams)
+function [p_f1_1, p_f2_2, T_21_cam_best,bestInlierSet] = findInliersRANSAC(p_f1_1, p_f2_2, optParams)
 %FINDINLIERSRANSAC Uses RANSAC to find inliers and fit the best scalar
 %weighted model
 
@@ -7,7 +7,7 @@ if size(p_f1_1, 2) < 4
     return;
 end
 
-ransacMaxIterations = 50;
+ransacMaxIterations = 25;
 numPoints = size(p_f1_1, 2);
 maxInlierCount = 3;
 bestInlierSet = 1:numPoints;
@@ -26,7 +26,7 @@ for rn_i = 1:ransacMaxIterations
         errorVec = homo2cart(T_21_test*cart2homo(p_f1_1(:,f_i))) - p_f2_2(:,f_i);
         cost = 0.5*(errorVec)'*(errorVec);
 %         costHist(f_i) = cost;
-        if cost < optParams.RANSACCostThresh
+        if cost < 0.05
            inlierCount = inlierCount + 1;
            inlierSet(end+1) = f_i;
         end

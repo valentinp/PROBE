@@ -1,4 +1,4 @@
-function [p_f1_1, p_f2_2,T_21_cam_best] = findInliersRot(p_f1_1, p_f2_2, C_21, optParams, calibParams)
+function [p_f1_1, p_f2_2,T_21_cam_best, bestInlierSet] = findInliersRot(p_f1_1, p_f2_2, C_21, optParams, calibParams)
 %FINDINLIERS 
 
 if size(p_f1_1, 2) < 4
@@ -8,7 +8,7 @@ end
 
 
 
-ransacMaxIterations = 50;
+ransacMaxIterations = 25;
 numPoints = size(p_f1_1, 2);
 maxInlierCount = 3;
 bestInlierSet = 1:numPoints;
@@ -49,6 +49,6 @@ p_f2_2 = p_f2_2(:,bestInlierSet);
 
 T_21_cam_best = scalarWeightedPointCloudAlignment(p_f1_1, p_f2_2, C_21);
 
-fprintf('%d inliers. %d outliers \n', length(bestInlierSet), numPoints - length(bestInlierSet));
+%fprintf('%d inliers. %d outliers \n', length(bestInlierSet), numPoints - length(bestInlierSet));
 end
 
