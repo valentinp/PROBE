@@ -5,14 +5,14 @@ function [predVectors] = computePredVectors( pixelLocations, image, imuData)
 
 
 usePredDims = [1; ... %u
-               1; ... %v
+               0; ... %v
                0; ... %x contrast
                0; ... %y contrast
-               1; ... % entropy
-               1; ... % mag(accel)
-               1; ... % mag(omega)
-               1; ... % point density
-               1;     % blur metric
+               0; ... % entropy
+               0; ... % mag(accel)
+               0; ... % mag(omega)
+               0; ... % point density
+               0;     % blur metric
                ];
 predSpaceDim = sum(usePredDims); 
 predVectors = zeros(predSpaceDim, size(pixelLocations,2));

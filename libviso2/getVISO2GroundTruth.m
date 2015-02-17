@@ -1,8 +1,7 @@
 % demonstrates stereo visual odometry on an image sequence
 disp('===========================');
-addpath('vo');
 addpath('~/Dropbox/PhD/Code/MATLAB/matlab_rosbag-0.4-mac64/');
-rosBagFileName = '~/Desktop/Pioneer-VI/2015-02-13-18-28-05-1loop.bag';
+rosBagFileName = '/Volumes/STARSExFAT/IROSData/2015-02-17-13-23-44.bag';
 viRightCamTopic = '/right/image_rect';
 viLeftCamTopic = '/left/image_rect';
 

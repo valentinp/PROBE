@@ -66,7 +66,7 @@ param.refinement             = 0;   % refinement (0=none,1=pixel,2=subpixel)
 addpath('settings');
 addpath('utils');
 addpath('learning');
-useWeights = false;
+useWeights = true;
 
 R = diag(16*ones(4,1));
 optParams.RANSACCostThresh = 3;
@@ -76,7 +76,7 @@ optParams.LMlambda = 1e-5;
 
 
 %% Load model
-load('learnedProbeModels/2011_09_26_drive_0005_sync_learnedPredSpace.mat');
+load('learnedProbeModels/2011_09_26_drive_0005_sync_learnedPredSpace_uCoordOnly.mat');
 searchObject = KDTreeSearcher(learnedPredSpace.predVectors');
 refWeight = mean(learnedPredSpace.weights);
 
@@ -88,8 +88,8 @@ ha1 = axes('Position',[0.05,0.7,0.9,0.25]);
 %axis off;
 ha2 = axes('Position',[0.05,0.05,0.9,0.6]);
 axis equal, grid on, hold on;
-
-rng(42);
+ 
+rng(100);
 % init matcher
 matcherMex('init',param);
 % push back first images
@@ -139,7 +139,7 @@ for frame=2:skipFrames:numFrames
       
     %Triangulate points and prune any at Infinity
     [p_f1_1, p_f2_2] = triangulateAllPointsDirect(p_matched, calibParams);
-    pruneId =  p_matched(1,:) > 600 | isinf(p_f1_1(1,:)) | isinf(p_f1_1(2,:)) | isinf(p_f1_1(3,:)) | isinf(p_f2_2(1,:)) | isinf(p_f2_2(2,:)) | isinf(p_f2_2(3,:));
+    pruneId = isinf(p_f1_1(1,:)) | isinf(p_f1_1(2,:)) | isinf(p_f1_1(3,:)) | isinf(p_f2_2(1,:)) | isinf(p_f2_2(2,:)) | isinf(p_f2_2(3,:));
     p_f1_1 = p_f1_1(:, ~pruneId);
     p_f2_2 = p_f2_2(:, ~pruneId);
     
@@ -153,19 +153,13 @@ for frame=2:skipFrames:numFrames
     %Find inliers based on rotation matrix from IMU
     %[p_f1_1, p_f2_2, T_21_est, inliers] = findInliersRot(p_f1_1, p_f2_2, T_21_cam(1:3,1:3), optParams);
     %[p_f1_1, p_f2_2, T_21_est, inliers] = findInliersRANSAC(p_f1_1, p_f2_2, optParams);
-    
-             %Plot image
-%       axes(ha1); cla;
-%       %imagesc(I1);
-%       %hold on;
-%       showMatchedFeatures(I1,I2,p_matched(5:6,inliers)', p_matched(7:8,inliers)'); 
-%       axis off;
-      
+        inliers = 1:size(p_f1_1,2);
 
-    inliers = 1:size(p_f1_1,2);
+         
+
     %If desired find optimal weight for each observation.
     if useWeights
-        [predVectors] = computePredVectors( p_matched(1:2,inliers), I1, [imuData.measAccel(:, frame-1); imuData.measOmega(:, frame-1)]);
+        [predVectors] = computePredVectors( p_matched(5:6,inliers), I1, [imuData.measAccel(:, frame-1); imuData.measOmega(:, frame-1)]);
         R_1 = NaN(4,4, length(inliers));
         predWeightList = NaN(1, length(inliers));
         for p_i = 1:length(inliers)
@@ -173,6 +167,18 @@ for frame=2:skipFrames:numFrames
             R_1(:,:,p_i) = predWeight*R;
             predWeightList(p_i) = predWeight;
         end
+        
+            %Plot image
+      axes(ha1); cla;
+      %imagesc(I1);
+      %hold on;
+      imagesc(I1); colormap('gray');
+      hold on;
+      viscircles(p_matched(5:6, inliers)',predWeightList);
+      %showMatchedFeatures(I1,I2,p_matched(5:6,inliers)', p_matched(7:8,inliers)'); 
+      axis off;
+      
+        
         fprintf('mean pred weight: %.5f \n',mean(predWeight));
         R_2 = R_1;
     else

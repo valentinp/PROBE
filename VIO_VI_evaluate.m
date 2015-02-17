@@ -1,18 +1,21 @@
-% demonstrates stereo visual odometry on an image sequence
 clear all;
 close all;
 disp('===========================');
-addpath('vo');
+addpath('libviso2');
 addpath('utils');
 addpath('learning');
 
+
 addpath('~/Dropbox/PhD/Code/MATLAB/matlab_rosbag-0.4-mac64/');
-rosBagFileName = '~/Desktop/Pioneer-VI/2015-02-13-18-28-05-1loop.bag';
+rosBagFileName = '/Volumes/STARSExFAT/IROSData/2015-02-17-16-41-58-Handheld1.bag';
+
+%Set up topics
 viRightCamTopic = '/right/image_rect';
 viLeftCamTopic = '/left/image_rect';
 viconTopic = '/vicon/Pioneer1/Base';
 imuTopic = '/imu0';
 
+%Load the bag
 bag = ros.Bag.load(rosBagFileName);
 bag.info()
 bagImageRightVIData = bag.readAll({viRightCamTopic});
@@ -37,6 +40,7 @@ calibParams.f_v = data.fv;
 calibParams.b = data.b;
 last_frame  = length(bagImageRightVIData);
 
+%Set up IMU to Cam transframe
 p_ci_i = [0.0602131703928; -0.00145860604554; -0.0465617957282];
 R_ic = rotmat_from_quat([0.999996930467 -5.44616859609e-05 0.00246256274859 -0.000268097157994]');
 R_ci = R_ic';
@@ -59,7 +63,6 @@ param.refinement             = 0;   % refinement (0=none,1=pixel,2=subpixel)
 
 %% Setup
 addpath('settings');
-
 R = diag(25*ones(4,1));
 optParams.RANSACCostThresh = 0.5*(0.1)^2;
 optParams.maxGNIter = 10;
@@ -75,18 +78,18 @@ for imu_i=1:length(bagImuData)
 end
 
 %%
-% create figure
-% figure('Color',[1 1 1]);
-% ha1 = axes('Position',[0.05,0.7,0.9,0.25]);
+%create figure
+figure('Color',[1 1 1]);
+ha1 = axes('Position',[0.05,0.7,0.9,0.25]);
 
-%axis off;
+axis off;
 ha2 = axes('Position',[0.05,0.05,0.9,0.6]);
 axis equal, grid on, hold on;
-gt = load('2015-02-13-18-28-05-1loop_GroundTruth.mat');
-plot(gt.p_camw_w_gt(1,:), gt.p_camw_w_gt(3,:),'-k');
+% gt = load('2015-02-13-18-28-05-1loop_GroundTruth.mat');
+% plot(gt.p_camw_w_gt(1,:), gt.p_camw_w_gt(3,:),'-k');
 
 %%
-repeatIter =  25;
+repeatIter =  1;
 meanRMSEHist = [];
 for repeat_i = 1:repeatIter
 rng('shuffle');
@@ -106,7 +109,6 @@ xInit.b_g = zeros(3,1);
 xInit.b_a = zeros(3,1);
 xInit.q = [1; zeros(3,1)];
 xState = xInit;
-
  
 k =1;
 T_wcam = eye(4);
@@ -114,7 +116,6 @@ T_wcam_hist = T_wcam;
 
 for frame=first_frame+1:1:last_frame
   
-  % 1-index
   
   % read current images
    I1 = uint8(reshape(bagImageLeftVIData{frame}.data, viImageSize(1), viImageSize(2))');
@@ -124,8 +125,6 @@ for frame=first_frame+1:1:last_frame
    I1 = I1(1:478, :);
    I2 = I2(1:478, :);
    
-   bm = blurMetric(I1);
-
  
    %IMU data
    currentViTime = bagImageLeftVIData{frame}.header.stamp.time;
@@ -138,15 +137,11 @@ for frame=first_frame+1:1:last_frame
         dt = imuDataWindowTimeStamps(imusub_i) - imuDataWindowTimeStamps(imusub_i-1);
         [xState] = integrateIMU(xState, imuDataWindow(1:3, imusub_i-1), imuDataWindow(4:6, imusub_i-1), dt, zeros(3,1));
    end
-   %xState.q = q_wimu
-   
    
    C_21_imu_est = rotmat_from_quat(xState.q)'*rotmat_from_quat(xPrevState.q);
    C_21_est = T_camimu(1:3,1:3)*C_21_imu_est*T_camimu(1:3,1:3)';
 
-    
-
-  
+   
     matcherMex('push',I1,I2); 
     % match images
     matcherMex('match',2);
@@ -160,19 +155,11 @@ for frame=first_frame+1:1:last_frame
     p_matched = p_matched(:,selectIdx);
     [p_f1_1, p_f2_2] = triangulateAllPointsDirect(p_matched, calibParams);
     %[predVectors] = computePredVectors( p_matched(1:2,:), I1, imuDataWindow(:,end));
-%     clusterIds = getClusterIds(predVectors, clusteringModel);
-%     
-%     clusterNo = 2;
-%     p_f1_1 = p_f1_1(:, clusterIds==clusterNo);
-%     p_f2_2 = p_f2_2(:, clusterIds==clusterNo);
-    
     
       %Show image
-%   axes(ha1); cla;
-%   imagesc(I1);
-%   axis off; colormap(gray);
-  %hold on;
-  %plot(p_matched(1,clusterIds==clusterNo), p_matched(2,clusterIds==clusterNo), 'o');
+   axes(ha1); cla;
+   imagesc(I1);
+   axis off; colormap(gray);
     
      pruneId = isinf(p_f1_1(1,:)) | isinf(p_f1_1(2,:)) | isinf(p_f1_1(3,:)) | isinf(p_f2_2(1,:)) | isinf(p_f2_2(2,:)) | isinf(p_f2_2(3,:));
      p_f1_1 = p_f1_1(:, ~pruneId);
@@ -186,11 +173,6 @@ for frame=first_frame+1:1:last_frame
     
     %Calculate initial guess using scalar weights, then use matrix weighted
     %non linear optimization
-    if bm > 0.4
-        R_pix = R;
-    else
-        R_pix = R;
-    end
     
     if size(p_f1_1, 2) > 4
         R_1 = repmat(R_pix, [1 1 size(p_f1_1, 2)]);
@@ -204,159 +186,35 @@ for frame=first_frame+1:1:last_frame
     T_wcam_hist(:,:,end+1) = T_wcam;
     
     % update trajectory
-%          axes(ha2);
-%         plot(T_wcam(1,4),T_wcam(3,4),'b*');
-%          hold on;
-%         %plot(p_camw_w_gt(1, frame-1),p_camw_w_gt(3, frame-1),'g*');
-%          grid on;
-%          drawnow();
+         axes(ha2);
+        plot(T_wcam(1,4),T_wcam(3,4),'b*');
+         hold on;
+         grid on;
+         drawnow();
         k = k + 1;
         fprintf('k:%d, repeat_i: %d \n',k,repeat_i);
 end
 
 % close matcher
 matcherMex('close');
-
+end
+% 
+%%
+translation = NaN(3, size(T_wcam_hist, 3));
+for i = 1:size(T_wcam_hist, 3)
+    T_wcam =  T_wcam_hist(:, :, i);
+    translation(:,i) = T_wcam(1:3, 4);
+end
+plot3(translation(1,:), translation(2,:), translation(3,:),'-g', 'LineWidth', 2);
+grid on;
+hold on;
 %Plot error and variances
-transErrVec = zeros(3, size(T_wcam_hist,3));
-for i = 1:size(T_wcam_hist,3)
-    transErrVec(:,i) = T_wcam_hist(1:3, 4, i) - gt.p_camw_w_gt(:,i);
-end
-meanRMSE = mean(sqrt(sum(transErrVec.^2,1)/3));
-meanRMSEHist(end+1) = meanRMSE
-end
-
-meanRMSEHist
-%% Load 'ground truth'
-% load('1loopGT.mat');
-% 
-% %Calculate statistics and plot
-% totalDist = 0;
-% frameRange = 1:1:last_frame-2;
-% for j = frameRange
-%     if j > 1
-%         totalDist = totalDist + norm(p_camw_w_gt(:,j) - p_camw_w_gt(:,j-1));
-%     end
+% transErrVec = zeros(3, size(T_wcam_hist,3));
+% for i = 1:size(T_wcam_hist,3)
+%     transErrVec(:,i) = T_wcam_hist(1:3, 4, i) - gt.p_camw_w_gt(:,i);
 % end
-% translation = NaN(3, size(T_wcam_hist, 3));
-% for i = 1:size(T_wcam_hist, 3)
-%     T_wcam =  T_wcam_hist(:, :, i);
-%     translation(:,i) = T_wcam(1:3, 4);
-% end
-% %Plot error and variances
-% transErrVec = zeros(3, length(frameRange));
-% 
-% for i = frameRange
-%     transErrVec(:,i) = translation(:, i) - p_camw_w_gt(:,i);
-% end
-% 
 % meanRMSE = mean(sqrt(sum(transErrVec.^2,1)/3));
-% 
-% 
-% % 
-% figure
-% plot(translation(1,:),translation(3,:), '-b');
-%  hold on;
-% plot(p_camw_w_gt(1,frameRange),p_camw_w_gt(3,frameRange), '-g');
-% title(sprintf('VI Sensor - ARMSE: %.5f, Dist: %.5f m', meanRMSE, totalDist), 'Interpreter', 'none');
-% xlabel('x');
-% ylabel('y');
-% zlabel('z');
-% grid on;
-% legend('Optimized','Ground Truth');
+% meanRMSEHist(end+1) = meanRMSE
 
 
-
-%% Calculate Blur Metric
-% addpath('learning');
-% bmHist = [];
-% for frame=first_frame+1:1:last_frame
-%   
-%   
-%   % read current images
-%    I1 = uint8(reshape(bagImageLeftVIData{frame}.data, viImageSize(1), viImageSize(2))');
-%    I2 = uint8(reshape(bagImageRightVIData{frame}.data, viImageSize(1), viImageSize(2))');
-%    I1 = I1(1:478, :);
-%    I2 = I2(1:478, :);
-%     bm = blurMetric(I1);
-%     bmHist(end+1) = bm;
-% end
-% plot(bmHist);
-%% Plot VICON Data if desired
-% addpath('extraction/utils')
-% figure
-% T_p1_hist = [];
-% for v_i = 1:length(bagViconData)
-%     t = bagViconData{v_i}.transform.translation;
-%     q = bagViconData{v_i}.transform.rotation;
-%     if v_i == 0
-%         T_g1 = [quatToRotMat(q)' t; 0 0 0 1]; 
-%         T_p1_hist(:,:, v_i) = eye(4);
-%     else
-%         T_p1_hist(:,:, v_i) = [quatToRotMat(q)' t; 0 0 0 1];
-%     end
-% end
-% 
-% t_p1_hist = [];
-% for v_i = 1:length(bagViconData)
-%     t_p1_hist(:, v_i) = T_p1_hist(1:3, 4, v_i);
-% end
-% plot(t_p1_hist(1,:), t_p1_hist(2,:), '*')
-
-%% Cluster data
-% addpath('learning');
-% bmHist = [];
-% allPredVectors = [];
-% for frame=first_frame+1:1:last_frame-2
-%     frame
-%    % read current images
-%    I1 = (reshape(bagImageLeftVIData{frame}.data, viImageSize(1), viImageSize(2))');
-%    %I2 = (reshape(bagImageRightVIData{frame}.data, viImageSize(1), viImageSize(2))');
-%    I1 = I1(1:478, :);
-%    %I2 = I2(1:478, :);
-%     
-%     keyPoints = detectSURFFeatures(mat2gray(I1));
-%     keyPointPixels = keyPoints.Location(:,:)';
-%     currentViTime = bagImageLeftVIData{frame}.header.stamp.time;
-% 
-%     %Computes Prediction Space points based on the image and keypoint position
-%     imu_i = findClosestTimestamp(currentViTime, imuDataTimeStamps);
-%     imuDataRecord = imuData(:, imu_i);
-%     
-%     predVectors = computePredVectors(keyPointPixels, I1, imuDataRecord);
-%     allPredVectors = [allPredVectors predVectors];
-% 
-% end
-% 
-% 
-% numClusters = 3;
-% Km = 1.5;
-% [idx, C,~,D] = kmeans(allPredVectors', numClusters);
-% 
-% 
-% [COEFF,SCORE, latent] = princomp(allPredVectors');
-% latent
-% COEFF
-% 
-% 
-% % Determine the mean distance of points within a cluster to the cluster's centroid
-% % This sets boundaries
-% 
-% meanCentroidDists = zeros(numClusters, 1);
-% predVectorsWithinBoundaries = 0;
-% for ic = 1:numClusters
-%     meanCentroidDists(ic) = Km*mean(D(idx == ic, ic));
-%     predVectorsWithinBoundaries = predVectorsWithinBoundaries + sum(D(idx == ic, ic) < meanCentroidDists(ic));
-% end
-% 
-% inFraction = predVectorsWithinBoundaries/size(allPredVectors,2);
-% 
-% clusteringModel.clusterNum = numClusters;
-% clusteringModel.centroids = C';
-% clusteringModel.threshDists = meanCentroidDists;
-% 
-% save('cluster.mat', 'clusteringModel');
-% 
-% 
-% 
-% eva = evalclusters(allPredVectors','kmeans','CalinskiHarabasz','KList',[1:10])
+% meanRMSEHist

@@ -111,6 +111,31 @@ for frame=2:skipFrames:numFrames
   k = k + 1
 end
 
+p_vi_i = NaN(3, size(T_wCam_GT,3));
+for j = frameRange
+    T_wcam_gt =  inv(T_wCam_GT(:,:,1))*T_wCam_GT(:,:, j);
+    p_vi_i(:,j) = T_wcam_gt(1:3,4);
+end
+translation = NaN(3, size(T_wcam_hist, 3));
+for i = 1:size(T_wcam_hist, 3)
+    T_wcam =  T_wcam_hist(:, :, i);
+    translation(:,i) = T_wcam(1:3, 4);
+end
+
+%Plot error and variances
+transErrVec = zeros(3, length(frameRange));
+for i = frameRange
+    transErrVec(:,i) = translation(:, i) - p_vi_i(:,i);
+end
+meanRMSE = mean(sqrt(sum(transErrVec.^2,1)/3))
+finalErrorNorm = norm(transErrVec(:,end))
+
+%% Create Search Tree
+f = strsplit(dataBaseDir, '/');
+f = strsplit(char(f(end)), '.');
+fileName = char(f(1));
+save(sprintf('../plots/%s_libviso2.mat', fileName), 'translation');
+
 % release visual odometry
 visualOdometryStereoMex('close');
 
