@@ -1,3 +1,3 @@
-# PREVIEW
+# PROBE
 
-Predictive robust estimation.
+Predictive robust estimation for Visual Inertial Navigation.
