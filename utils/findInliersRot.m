@@ -6,14 +6,11 @@ if size(p_f1_1, 2) < 4
     return;
 end
 
-
-
-ransacMaxIterations = 50;
 numPoints = size(p_f1_1, 2);
 maxInlierCount = 3;
 bestInlierSet = 1:numPoints;
 
-for rn_i = 1:ransacMaxIterations
+for rn_i = 1:optParams.RANSACMaxIterations
     %Select three random points
     threeIdx = randperm(numPoints,3);
     restIdx = setdiff(1:numPoints, threeIdx);

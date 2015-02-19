@@ -3,10 +3,10 @@ addpath('libviso2');
 addpath('datasets/extraction/utils');
 addpath('datasets/extraction/utils/devkit');
 addpath('utils');
-dataBaseDir = '/Users/valentinp/Desktop/KITTI/2011_09_26/2011_09_26_drive_0104_sync';
+dataBaseDir = '/Users/valentinp/Desktop/KITTI/2011_09_26/2011_09_26_drive_0005_sync';
 dataCalibDir = '/Users/valentinp/Desktop/KITTI/2011_09_26';
 %% Get ground truth and import data
-frameRange = 1:310;
+frameRange = 1:150;
 %Image data
 leftImageData = loadImageData([dataBaseDir '/image_00'], frameRange);
 rightImageData = loadImageData([dataBaseDir '/image_01'], frameRange);
@@ -65,20 +65,14 @@ param.refinement             = 0;   % refinement (0=none,1=pixel,2=subpixel)
 addpath('settings');
 addpath('utils');
 addpath('learning');
-useWeights = false;
+useWeights = true;
 
-R = 4*eye(4);
-optParams = {};
-optParams.RANSACCostThresh = 0.05;
-%Aggressive
-%optParams.RANSACMaxIterations = round(log(1-0.9999)/log(1-(1-0.5)^3));
-%Normal
-optParams.RANSACMaxIterations = round(log(1-0.99)/log(1-(1-0.5)^3));
-
+R = diag(16*ones(4,1));
+optParams.RANSACCostThresh = 0.1;
 optParams.maxGNIter = 10;
 optParams.lineLambda = 0.75;
 optParams.LMlambda = 1e-5;
-optParams
+
 
 %% Load model
 load('learnedProbeModels/2011_09_26_drive_0005_sync_learnedPredSpaceIter10Step.mat');
@@ -169,21 +163,18 @@ for frame=2:skipFrames:numFrames
             predWeightList = getPredVectorWeight(predVectors, searchObject, learnedPredSpace.weights, refWeight);
             R_1 = [];
             thresholdPruneIdx = [];
-            r_i = 1;
             for p_i = 1:length(predWeightList)
                 predWeight = predWeightList(p_i);
                 if predWeight > 100
                     thresholdPruneIdx(end+1) = p_i;
+                    
                 else
-                    R_1(:,:,r_i) = predWeight*R;
-                    r_i = r_i + 1;
+                    R_1(:,:,p_i) = predWeight*R;
                 end
             end
             inliers(thresholdPruneIdx) = [];
             p_f1_1(:, thresholdPruneIdx) = [];
             p_f2_2(:, thresholdPruneIdx) = [];
-            predWeightList(thresholdPruneIdx) = [];
-            fprintf('Threw out %d obs. \n', length(thresholdPruneIdx));
 
             %Plot image
        axes(ha1); cla;
@@ -191,7 +182,7 @@ for frame=2:skipFrames:numFrames
 %       %hold on;
        imagesc(I1); colormap('gray');
 %       hold on;
-       viscircles(p_matched(5:6, inliers)',predWeightList);
+       viscircles(p_matched(5:6, inliers)',predWeightList());
 %       %showMatchedFeatures(I1,I2,p_matched(5:6,inliers)', p_matched(7:8,inliers)'); 
 %       axis off;
       
@@ -200,13 +191,10 @@ for frame=2:skipFrames:numFrames
         R_2 = R_1;
         T_21_est = scalarWeightedPointCloudAlignment(p_f1_1, p_f2_2,T_21_cam(1:3,1:3));
     else
-        [p_f1_1, p_f2_2, T_21_est, inliers] = findInliersRot(p_f1_1, p_f2_2, T_21_cam(1:3,1:3), optParams);
-        fprintf('RANSAC removed %d/%d points', length(selectIdx)- length(inliers), length(selectIdx));
         R_1 = repmat(R, [1 1 size(p_f1_1, 2)]);
         R_2 = R_1;
+        [p_f1_1, p_f2_2, T_21_est, inliers] = findInliersRot(p_f1_1, p_f2_2, T_21_cam(1:3,1:3), optParams);
     end
-    
-    
     T_21_opt = matrixWeightedPointCloudAlignment(p_f1_1, p_f2_2, R_1, R_2, T_21_est, calibParams, optParams);
     
     T_wcam = T_wcam*inv(T_21_opt);
@@ -243,22 +231,8 @@ transErrVec = zeros(3, length(frameRange));
 for i = frameRange
     transErrVec(:,i) = translation(:, i) - p_vi_i(:,i);
 end
-meanRMSE = mean(sqrt(sum(transErrVec.^2,1)/3));
-finalErrorNorm = norm(transErrVec(:,end));
-
-totalDist = 0;
-p_vi_i = NaN(3, size(T_wCam_GT,3));
-for j = frameRange
-    if j > 1
-        T_12 = inv(T_wCam_GT(:,:,j-1))*T_wCam_GT(:,:, j);
-        totalDist = totalDist + norm(T_12(1:3,4));
-    end
-    T_wcam_gt =  inv(T_wCam_GT(:,:,1))*T_wCam_GT(:,:, j);
-    p_vi_i(:,j) = T_wcam_gt(1:3,4);
-end
-
-fprintf('Total Distance: %.3f \n',totalDist);
-fprintf('ARMSE/Final Error Norm: (%.3f/%.3f) \n',meanRMSE, finalErrorNorm);
+meanRMSE = mean(sqrt(sum(transErrVec.^2,1)/3))
+finalErrorNorm = norm(transErrVec(:,end))
 
 %% Create Search Tree
 % f = strsplit(dataBaseDir, '/');
