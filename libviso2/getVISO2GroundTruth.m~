@@ -1,7 +1,7 @@
 % demonstrates stereo visual odometry on an image sequence
 disp('===========================');
 addpath('~/Dropbox/PhD/Code/MATLAB/matlab_rosbag-0.4-mac64/');
-rosBagFileName = '/Users/valentinp/Desktop/Pioneer-VI/2015-02-18-12-33-30.bag';
+rosBagFileName = '/Users/valentinp/Desktop/Pioneer-VI/2015-02-18-12-24-23.bag';
 viRightCamTopic = '/right/image_rect';
 viLeftCamTopic = '/left/image_rect';
 
@@ -12,7 +12,7 @@ bagImageLeftVIData = bag.readAll({viLeftCamTopic});
 viLeftcalib = bag.readAll({'/cam0/camera_info'}); %right
 viRightcalib = bag.readAll({'/cam1/camera_info'}); %left
 viImageSize = [752 480];
-%%
+
 data = load('../datasets/2015-01-28-16-11-17_1loop.mat');
 param.f     = data.fu;
 param.cu    = data.cu;
@@ -84,19 +84,13 @@ visualOdometryStereoMex('close');
 norm(Tr_total{end}(1:3, 4))
 Tr_total{end}(1:3, 4)
 
-totalDist = 0;
 p_camw_w_libviso2 = NaN(3, length(Tr_total));
 for i = 1:length(Tr_total)
     p_camw_w_libviso2(:, i) = Tr_total{i}(1:3,4);
-   if i > 1
-        T_12 = inv(Tr_total{i-1}(:,:))*Tr_total{i}(:,:);
-        totalDist = totalDist + norm(T_12(1:3,4));
-    end
 end
 
-totalDist
-plot(p_camw_w_libviso2(1,:),p_camw_w_libviso2(3,:));
-grid on
+plot3(p_camw_w_libviso2(1,:),p_camw_w_libviso2(2,:),p_camw_w_libviso2(3,:));
+
 % f = strsplit(rosBagFileName, '/');
 % f = strsplit(char(f(end)), '.');
 % fileName = [char(f(1)) '_GroundTruth.mat'];

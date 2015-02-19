@@ -7,7 +7,7 @@ addpath('learning');
 
 
 addpath('~/Dropbox/PhD/Code/MATLAB/matlab_rosbag-0.4-mac64/');
-rosBagFileName = '/Volumes/STARSExFAT/IROSData/2015-02-17-16-41-58-Handheld1.bag';
+rosBagFileName = '/Volumes/STARSExFAT/IROSData/2015-02-18-12-24-23.bag';
 
 %Set up topics
 viRightCamTopic = '/right/image_rect';
@@ -150,8 +150,14 @@ for frame=first_frame+1:1:last_frame
     % showMatchedFeatures(I1, I2, p_matched(1:2,:)', p_matched(3:4,:)');
     % drawnow;
 
-         %Triangulate points and prune any at Infinity
-    selectIdx = randperm(size(p_matched,2), 25);
+    %Triangulate points and prune any at Infinity
+    numFts = 25;
+         
+    if size(p_matched,2) > numFts
+        selectIdx = randperm(size(p_matched,2), numFts);
+    else
+        selectIdx = 1:size(p_matched,2);
+    end
     p_matched = p_matched(:,selectIdx);
     [p_f1_1, p_f2_2] = triangulateAllPointsDirect(p_matched, calibParams);
     %[predVectors] = computePredVectors( p_matched(1:2,:), I1, imuDataWindow(:,end));
@@ -169,13 +175,13 @@ for frame=first_frame+1:1:last_frame
     %Find inliers based on rotation matrix from IMU
     [p_f1_1, p_f2_2, T_21_est] = findInliersRot(p_f1_1, p_f2_2, C_21_est, optParams,calibParams);
     %T_21_est = scalarWeightedPointCloudAlignment(p_f1_1, p_f2_2, C_21_est);
-    %fprintf('Tracking %d features. \n', size(p_f1_1,2));
-    
+    fprintf('Tracking %d features. \n', size(p_f1_1,2));
+   
     %Calculate initial guess using scalar weights, then use matrix weighted
     %non linear optimization
     
     if size(p_f1_1, 2) > 4
-        R_1 = repmat(R_pix, [1 1 size(p_f1_1, 2)]);
+        R_1 = repmat(R, [1 1 size(p_f1_1, 2)]);
         R_2 = R_1;
         T_21_opt = matrixWeightedPointCloudAlignment(p_f1_1, p_f2_2, R_1, R_2, T_21_est, calibParams, optParams);
     else

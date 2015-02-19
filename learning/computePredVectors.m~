@@ -1,13 +1,21 @@
 function [predVectors] = computePredVectors( pixelLocationsCurr, imageCurr, imagePrev, imuData)
 %EXTRACTPREDICTIONSPACE Extract prediction vectors
 
-%Predictors:
-%[imuPred; blurMetricNum; localEntropy; lowFreqCoeff; highFreqCoeff; flowCoeff]; 
-predSpaceDim = 7; 
+%Pre-allocate space for prediction vectors
+% usePredDims = [1; ... %u
+%                1; ... %v
+%                1; ... %x contrast
+%                1; ... %y contrast
+%                1; ... % entropy
+%                1; ... % mag(accel)
+%                1; ... % mag(omega)
+%                1;     % blur metric
+%                ];
+predSpaceDim = sum(usePredDims); 
 predVectors = zeros(predSpaceDim, size(pixelLocationsCurr,2));
 
 % matching parameters
-param.nms_n                  = 2;   % non-max-suppression: min. distance between maxima (in pixels)
+param.nms_n                  = 1;   % non-max-suppression: min. distance between maxima (in pixels)
 param.nms_tau                = 50;  % non-max-suppression: interest point peakiness threshold
 param.match_binsize          = 10;  % matching bin width/height (affects efficiency only)
 param.match_radius           = 10; % matching radius (du/dv in pixels)
@@ -20,14 +28,14 @@ param.refinement             = 0;   % refinement (0=none,1=pixel,2=subpixel)
 
 
 % init matcher
-matcherMexFlow('init',param);
+matcherMex('init',param);
 % push back images
-matcherMexFlow('push',imageCurr);
-matcherMexFlow('push',imagePrev);
-matcherMexFlow('match',0);
+matcherMex('push',imageCurr);
+matcherMex('push',imagePrev);
+matcherMex('match',0);
 p_matched_global = matcherMex('get_matches',0);
 % close matcher
-matcherMexFlow('close');
+matcherMex('close');
 U = p_matched_global(3,:) - p_matched_global(1,:);
 V = p_matched_global(4,:) - p_matched_global(2,:);
 Uxcoord = p_matched_global(3,:);
@@ -36,13 +44,12 @@ Vxcoord = p_matched_global(4,:);
 normFlowMeanGlobal = mean(sqrt(sum([U.^2; V.^2])));
 
 
-imageSize = size(imageCurr);
+imageSize = size(imageCurr)';
 binSize = 50;
 
 %Blur metric is the same for entire image
 for i = 1:size(pixelLocationsCurr, 2)
     pixelLoc = round(pixelLocationsCurr(:,i));
-    pixelLoc = flipud(pixelLoc); %Necessary so u and v are correct
     %Magnitude of linear acceleration and angular velocity
     imuPred = [norm(imuData(1:3))/9.8; norm(imuData(4:6))];
     
@@ -62,21 +69,17 @@ for i = 1:size(pixelLocationsCurr, 2)
         lowFreqCoeff = mean(log(abs(Iglf(:))));
         highFreqCoeff = mean(log(abs(Ighf(:))));
         
-        mask = Uxcoord > pixelLoc(2)-binSize/2 & Uxcoord < pixelLoc(2)+binSize/2 & Vxcoord > pixelLoc(1)-binSize/2 & Vxcoord < pixelLoc(1)+binSize/2;
-        Uloc = U(mask);
-        Vloc = V(mask);
+        
+        Uloc = U(Uxcoord > pixelLoc(1)-binSize/2 & Uxcoord < pixelLoc(1)+binSize/2);
+        Vloc = V(Vxcoord > pixelLoc(2)-binSize/2 & Vxcoord < pixelLoc(2)+binSize/2);
         flowCoeff = mean(sqrt(sum([Uloc.^2; Vloc.^2])))/normFlowMeanGlobal;
         
-        if isnan(flowCoeff)
-            flowCoeff = 0;
-        end
         %local mean intensity
     else
         blurMetricNum = 0;
         localEntropy = 0;
         lowFreqCoeff = 0;
         highFreqCoeff = 0;
-        flowCoeff = 0;
     end
 
     predVec = [imuPred; blurMetricNum; localEntropy; lowFreqCoeff; highFreqCoeff; flowCoeff];

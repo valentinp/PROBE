@@ -8,7 +8,7 @@ end
 
 
 
-ransacMaxIterations = 25;
+ransacMaxIterations = 50;
 numPoints = size(p_f1_1, 2);
 maxInlierCount = 3;
 bestInlierSet = 1:numPoints;
