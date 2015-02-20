@@ -1,12 +1,13 @@
+clear;
 disp('===========================');
 addpath('libviso2');
 addpath('datasets/extraction/utils');
 addpath('datasets/extraction/utils/devkit');
 addpath('utils');
-dataBaseDir = '/Users/valentinp/Desktop/KITTI/2011_09_26/2011_09_26_drive_0046_sync';
+dataBaseDir = '/Users/valentinp/Desktop/KITTI/2011_09_26/2011_09_26_drive_0019_sync';
 dataCalibDir = '/Users/valentinp/Desktop/KITTI/2011_09_26';
 %% Get ground truth and import data
-frameRange = 1:124;
+frameRange = 1:480;
 %Image data
 leftImageData = loadImageData([dataBaseDir '/image_00'], frameRange);
 rightImageData = loadImageData([dataBaseDir '/image_01'], frameRange);
@@ -50,7 +51,7 @@ param.f     = fu;
 param.cu    = cu;
 param.cv    = cv;
 param.base  = b;
-param.nms_n                  = 10;   % non-max-suppression: min. distance between maxima (in pixels)
+param.nms_n                  = 8;   % non-max-suppression: min. distance between maxima (in pixels)
 param.nms_tau                = 50;  % non-max-suppression: interest point peakiness threshold
 param.match_binsize          = 50;  % matching bin width/height (affects efficiency only)
 param.match_radius           = 200; % matching radius (du/dv in pixels)
@@ -58,18 +59,18 @@ param.match_disp_tolerance   = 1;   % du tolerance for stereo matches (in pixels
 param.outlier_disp_tolerance = 5;   % outlier removal: disparity tolerance (in pixels)
 param.outlier_flow_tolerance = 5;   % outlier removal: flow tolerance (in pixels)
 param.multi_stage            = 1;   % 0=disabled,1=multistage matching (denser and faster)
-param.half_resolution        = 1;   % 0=disabled,1=match at half resolution, refine at full resolution
+param.half_resolution        = 1;   % 0=disab3led,1=match at half resolution, refine at full resolution
 param.refinement             = 0;   % refinement (0=none,1=pixel,2=subpixel)
 
 %% Setup
 addpath('settings');
 addpath('utils');
 addpath('learning');
-useWeights = true;
+useWeights = false;
 
 R = 4*eye(4);
 optParams = {};
-optParams.RANSACCostThresh = 0.05;
+optParams.RANSACCostThresh = 0.001;
 %Aggressive
 %optParams.RANSACMaxIterations = round(log(1-0.9999)/log(1-(1-0.5)^3));
 %Normal
@@ -81,7 +82,7 @@ optParams.LMlambda = 1e-5;
 optParams
 
 %% Load model
-load('learnedProbeModels/2011_09_26_drive_0046_sync_learnedPredSpaceIter25Step.mat');
+load('learnedProbeModels/2011_09_26_drive_0023_sync_learnedPredSpaceIter10Step.mat');
 searchObject = KDTreeSearcher(learnedPredSpace.predVectors');
 refWeight = mean(learnedPredSpace.weights);
 
@@ -173,7 +174,7 @@ for frame=2:skipFrames:numFrames
             r_i = 1;
             for p_i = 1:length(predWeightList)
                 predWeight = predWeightList(p_i);
-                if predWeight > 100
+                if predWeight > 10
                     thresholdPruneIdx(end+1) = p_i;
                 else
                     R_1(:,:,r_i) = predWeight*R;
@@ -187,14 +188,14 @@ for frame=2:skipFrames:numFrames
             fprintf('Threw out %d obs. \n', length(thresholdPruneIdx));
 
             %Plot image
-      axes(ha1); cla;
-      %imagesc(I1);
-      %hold on;
-      imagesc(I1); colormap('gray');
-      hold on;
-      viscircles(p_matched(5:6, inliers)',predWeightList);
-      %showMatchedFeatures(I1,I2,p_matched(5:6,inliers)', p_matched(7:8,inliers)'); 
-      axis off;
+%       axes(ha1); cla;
+%       %imagesc(I1);
+%       %hold on;
+%       imagesc(I1); colormap('gray');
+%       hold on;
+%       viscircles(p_matched(5:6, inliers)',predWeightList);
+%       %showMatchedFeatures(I1,I2,p_matched(5:6,inliers)', p_matched(7:8,inliers)'); 
+%       axis off;
       
         
         fprintf('mean pred weight: %.5f \n',mean(predWeightList));

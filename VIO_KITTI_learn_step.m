@@ -4,11 +4,11 @@ addpath('datasets/extraction/utils');
 addpath('datasets/extraction/utils/devkit');
 addpath('utils');
 addpath('learning');
-dataBaseDir = '/Users/valentinp/Desktop/KITTI/2011_09_26/2011_09_26_drive_0046_sync';
+dataBaseDir = '/Users/valentinp/Desktop/KITTI/2011_09_26/2011_09_26_drive_0023_sync';
 dataCalibDir = '/Users/valentinp/Desktop/KITTI/2011_09_26';
 %% Get ground truth and import data
-frameRange = 1:124;
-%Image data
+frameRange = 1:150;
+%%Image data
 leftImageData = loadImageData([dataBaseDir '/image_00'], frameRange);
 rightImageData = loadImageData([dataBaseDir '/image_01'], frameRange);
 %IMU data
@@ -91,11 +91,11 @@ repeatIter =  10;
 learnedPredSpace.predVectors = [];
 learnedPredSpace.weights = [];
 p_wcam_hist = NaN(3,length(frameRange), repeatIter);
+rng('shuffle');
 
 for repeat_i = 1:repeatIter
     
 usedPredVectors = [];
-rng('shuffle');
 % init matcher
 matcherMex('init',param);
 % push back first images
@@ -151,8 +151,14 @@ for frame=2:skipFrames:numFrames
     p_f1_1 = p_f1_1(:, ~pruneId);
     p_f2_2 = p_f2_2(:, ~pruneId);
     
-    %Select a random subset of 100
-    selectIdx = randperm(size(p_f1_1,2), 5);
+    %Select a subset
+    %selectIdx = randperm(size(p_f1_1,2), 5);
+    numLm = size(p_f1_1,2);
+    skip = floor(numLm/repeatIter);
+    buckets = [1:skip:numLm - mod(numLm, skip); skip:skip:numLm];
+
+    selectIdx = buckets(1, repeat_i):buckets(2, repeat_i);
+    
     p_f1_1 = p_f1_1(:, selectIdx);
     p_f2_2 = p_f2_2(:, selectIdx);
     p_matched = p_matched(:, selectIdx);
@@ -381,7 +387,7 @@ g = g + 1;
 end
 
 %% Export the entire model
-[~,minIdx] = min(rmseList);
+[~,minIdx]  = min(rmseList);
 learnedPredSpace.gamma = gammaList(minIdx);
 f = strsplit(dataBaseDir, '/');
 f = strsplit(char(f(end)), '.');

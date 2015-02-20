@@ -1,5 +1,5 @@
 close all;
-load('2011_09_26_drive_0046_sync_learnedPredSpaceIter25Step.mat')
+load('2011_09_26_drive_0027_sync_learnedPredSpaceIter10Step.mat')
 %scatter(learnedPredSpace.weights, zeros(1, length(learnedPredSpace.weights)))
 
 %%
@@ -41,7 +41,7 @@ kTestList = 25:100;
 lw = length(learnedPredSpace.weights);
 numBuckets = 10;
 skip = floor(lw/numBuckets);
-buckets = [1:skip:lw - mod(lw, numBuckets); skip:skip:lw];
+buckets = [1:skip:lw - mod(lw, skip); skip:skip:lw];
 
 kAvgErr = NaN(numBuckets, length(kTestList));
 %

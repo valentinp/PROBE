@@ -21,18 +21,20 @@ for rn_i = 1:optParams.RANSACMaxIterations
     %Compute all points that fall outside the threshold (via cost function)
     inlierCount = 0;
     inlierSet = threeIdx;
-%     costHist = NaN(1, length(restIdx));
+     costHist = NaN(1, length(restIdx));
     for f_i = restIdx
-        errorVec = homo2cart(T_21_test*cart2homo(p_f1_1(:,f_i))) - p_f2_2(:,f_i);
-        cost = 0.5*(errorVec)'*(errorVec);
-%         costHist(f_i) = cost;
+        vec1 = homo2cart(T_21_test*cart2homo(p_f1_1(:,f_i)));
+        vec2 = p_f2_2(:,f_i);
+        cost = 1 - dot(vec1,vec2)/(norm(vec1)*norm(vec2));
+%          costHist(f_i) = cost;
         if cost < optParams.RANSACCostThresh
            inlierCount = inlierCount + 1;
            inlierSet(end+1) = f_i;
         end
     end
-%     hist(costHist);
-%     pause();
+%     figure
+%      hist(costHist);
+
     
     if inlierCount > maxInlierCount
         maxInlierCount = inlierCount;

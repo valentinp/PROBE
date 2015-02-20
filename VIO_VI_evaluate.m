@@ -62,7 +62,7 @@ param.refinement             = 0;   % refinement (0=none,1=pixel,2=subpixel)
 %% Setup
 addpath('settings');
 R = diag(25*ones(4,1));
-optParams.RANSACCostThresh = 0.05;
+optParams.RANSACCostThresh = 0.001;
 optParams.RANSACMaxIterations = round(log(1-0.999)/log(1-(1-0.5)^3));
 optParams.maxGNIter = 10;
 optParams.lineLambda = 0.75;
