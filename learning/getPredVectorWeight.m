@@ -1,6 +1,6 @@
-function [predWeights] = getPredVectorWeight(predVectors, searchObject, learnedWeights, refWeight)
+function [predWeights] = getPredVectorWeight(predVectors, searchObject, learnedWeights, refWeight, gamma)
 %Use KNN to find nearest vector and associated weight
-idx = knnsearch(searchObject, predVectors', 'K', 25);
+idx = knnsearch(searchObject, predVectors', 'K', 50);
 predWeights = mean(learnedWeights(idx), 2)/refWeight;
-predWeights = predWeights.^8;
+predWeights = predWeights.^gamma;
 end

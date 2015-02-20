@@ -1,31 +1,31 @@
 close all;
-load('2011_09_26_drive_0005_sync_learnedPredSpaceIter10Step.mat')
+load('2011_09_26_drive_0046_sync_learnedPredSpaceIter25Step.mat')
 %scatter(learnedPredSpace.weights, zeros(1, length(learnedPredSpace.weights)))
 
 %%
-% close all;
-% pruneWeightsIdx = learnedPredSpace.predVectors(1,:) == 0 | learnedPredSpace.predVectors(2,:) == 0 | learnedPredSpace.predVectors(3,:) == 0 | learnedPredSpace.predVectors(4,:) == 0 | learnedPredSpace.predVectors(5,:) == 0 | learnedPredSpace.predVectors(6,:) == 0 | learnedPredSpace.predVectors(7,:) == 0;
-% 
-% learnedPredSpace.weights = learnedPredSpace.weights(~pruneWeightsIdx);
-% learnedPredSpace.predVectors = learnedPredSpace.predVectors(:,~pruneWeightsIdx);
-% 
-% 
-% for i = 1:size(learnedPredSpace.predVectors,1)
-%     A = [learnedPredSpace.weights' ones(length(learnedPredSpace.weights),1)];
-%     x = (A'*A)\(A'*learnedPredSpace.predVectors(i,:)');
-%     x(1)
-%     figure
-%     plot(learnedPredSpace.weights, learnedPredSpace.predVectors(i,:), '*')
-%     hold on
-%     uniqueWeights = unique(learnedPredSpace.weights);
-% %     meanPredictors = NaN(1, length(uniqueWeights));
-% %     for w = 1:length(uniqueWeights)
-% %         meanPredictors(w) = median(learnedPredSpace.predVectors(i,learnedPredSpace.weights==uniqueWeights(w)));
-% %     end
-% %     plot(uniqueWeights, meanPredictors, 'r*');
-%     xlabel('ARMSE')
-%     ylabel('Predictor')
-% end
+close all;
+pruneWeightsIdx = learnedPredSpace.predVectors(1,:) == 0 | learnedPredSpace.predVectors(2,:) == 0 | learnedPredSpace.predVectors(3,:) == 0 | learnedPredSpace.predVectors(4,:) == 0 | learnedPredSpace.predVectors(5,:) == 0 | learnedPredSpace.predVectors(6,:) == 0 | learnedPredSpace.predVectors(7,:) == 0;
+
+learnedPredSpace.weights = learnedPredSpace.weights(~pruneWeightsIdx);
+learnedPredSpace.predVectors = learnedPredSpace.predVectors(:,~pruneWeightsIdx);
+
+
+for i = 1:size(learnedPredSpace.predVectors,1)
+    A = [learnedPredSpace.weights' ones(length(learnedPredSpace.weights),1)];
+    x = (A'*A)\(A'*learnedPredSpace.predVectors(i,:)');
+    x(1)
+    figure
+    plot(learnedPredSpace.weights, learnedPredSpace.predVectors(i,:), '*')
+    hold on
+    uniqueWeights = unique(learnedPredSpace.weights);
+%     meanPredictors = NaN(1, length(uniqueWeights));
+%     for w = 1:length(uniqueWeights)
+%         meanPredictors(w) = median(learnedPredSpace.predVectors(i,learnedPredSpace.weights==uniqueWeights(w)));
+%     end
+%     plot(uniqueWeights, meanPredictors, 'r*');
+    xlabel('ARMSE')
+    ylabel('Predictor')
+end
 
 
 % subplot(5,2,7)

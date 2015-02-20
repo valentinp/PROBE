@@ -3,10 +3,10 @@ addpath('libviso2');
 addpath('datasets/extraction/utils');
 addpath('datasets/extraction/utils/devkit');
 addpath('utils');
-dataBaseDir = '/Users/valentinp/Desktop/KITTI/2011_09_26/2011_09_26_drive_0104_sync';
+dataBaseDir = '/Users/valentinp/Desktop/KITTI/2011_09_26/2011_09_26_drive_0046_sync';
 dataCalibDir = '/Users/valentinp/Desktop/KITTI/2011_09_26';
 %% Get ground truth and import data
-frameRange = 1:310;
+frameRange = 1:124;
 %Image data
 leftImageData = loadImageData([dataBaseDir '/image_00'], frameRange);
 rightImageData = loadImageData([dataBaseDir '/image_01'], frameRange);
@@ -65,7 +65,7 @@ param.refinement             = 0;   % refinement (0=none,1=pixel,2=subpixel)
 addpath('settings');
 addpath('utils');
 addpath('learning');
-useWeights = false;
+useWeights = true;
 
 R = 4*eye(4);
 optParams = {};
@@ -81,9 +81,10 @@ optParams.LMlambda = 1e-5;
 optParams
 
 %% Load model
-load('learnedProbeModels/2011_09_26_drive_0005_sync_learnedPredSpaceIter10Step.mat');
+load('learnedProbeModels/2011_09_26_drive_0046_sync_learnedPredSpaceIter25Step.mat');
 searchObject = KDTreeSearcher(learnedPredSpace.predVectors');
 refWeight = mean(learnedPredSpace.weights);
+
 
 %% Main loop
 
@@ -165,8 +166,8 @@ for frame=2:skipFrames:numFrames
     %If desired find optimal weight for each observation.
     if useWeights
           inliers = 1:size(p_f1_1,2);
-          [predVectors] = computePredVectors( p_matched(1:2,inliers), I1, I1prev, [imuData.measAccel(:, frame-1); imuData.measOmega(:, frame-1)]);
-            predWeightList = getPredVectorWeight(predVectors, searchObject, learnedPredSpace.weights, refWeight);
+          [predVectors] = computePredVectors( p_matched(1:2,inliers), I1, I1prev, [imuData.measAccel(:, frame); imuData.measOmega(:, frame-1)]);
+            predWeightList = getPredVectorWeight(predVectors, searchObject, learnedPredSpace.weights, refWeight, learnedPredSpace.gamma);
             R_1 = [];
             thresholdPruneIdx = [];
             r_i = 1;
@@ -186,14 +187,14 @@ for frame=2:skipFrames:numFrames
             fprintf('Threw out %d obs. \n', length(thresholdPruneIdx));
 
             %Plot image
-       axes(ha1); cla;
-%       %imagesc(I1);
-%       %hold on;
-       imagesc(I1); colormap('gray');
-%       hold on;
-       viscircles(p_matched(5:6, inliers)',predWeightList);
-%       %showMatchedFeatures(I1,I2,p_matched(5:6,inliers)', p_matched(7:8,inliers)'); 
-%       axis off;
+      axes(ha1); cla;
+      %imagesc(I1);
+      %hold on;
+      imagesc(I1); colormap('gray');
+      hold on;
+      viscircles(p_matched(5:6, inliers)',predWeightList);
+      %showMatchedFeatures(I1,I2,p_matched(5:6,inliers)', p_matched(7:8,inliers)'); 
+      axis off;
       
         
         fprintf('mean pred weight: %.5f \n',mean(predWeightList));
