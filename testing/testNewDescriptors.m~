@@ -101,21 +101,17 @@ for f_i = 1:size(p_matched_sparse, 2)
     VlocLarge = V(maskLarge);
     
     if ~isempty(UlocSmall)
-        meanNormSmall = mean(var([UlocSmall; VlocSmall]'));
+        meanNormSmall = mean(var([UlocSmall; UlocSmall]'));
         meanNormLarge = mean(var([UlocLarge; VlocLarge]'));
         flowCoeff = log(meanNormSmall/meanNormLarge);
     else
         flowCoeff = 0;
     end
    
-    radius = 10;
+    radius = 5;
     red = 1/(1 + exp(-flowCoeff));
     green = 1/(1 + exp(flowCoeff));
-    h = rectangle('Position',[pixelLoc(2),pixelLoc(1),radius,radius],...
-    'Curvature',[1,1],...
-    'FaceColor',[red green 0]);
-
-    %viscircles([pixelLoc(2), pixelLoc(1)], radius, 'EdgeColor', [red green 0], 'DrawBackgroundCircle', true);
+    viscircles([pixelLoc(2), pixelLoc(1)], radius, 'EdgeColor', [red green 0] );
     %text(u+binSize/2,v+binSize/2+10,sprintf('%.1f',Ighf), 'Color', 'g');
     
 end

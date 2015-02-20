@@ -37,16 +37,16 @@ for i = 1:size(pixelLocationsCurr, 2)
     %Ensure the location is not at the edge of the image, otherwise return
     %zeros for everything but pixel location
     
-    if pixelLoc(1) < imageSize(1) - binSizeSmall/2 && pixelLoc(1)  > binSizeSmall/2 && pixelLoc(2) < imageSize(2) - binSizeSmall/2  && pixelLoc(2) > binSizeSmall/2
+    if pixelLoc(1) < imageSize(1) - binSize/2 && pixelLoc(1)  > binSize/2 && pixelLoc(2) < imageSize(2) - binSize/2  && pixelLoc(2) > binSize/2
         
              
-        imageSeg = imageCurr(pixelLoc(1)-binSizeSmall/2:pixelLoc(1)+binSizeSmall/2, pixelLoc(2)-binSizeSmall/2:pixelLoc(2)+binSizeSmall/2);
+        imageSeg = imageCurr(pixelLoc(1)-binSize/2:pixelLoc(1)+binSize/2, pixelLoc(2)-binSize/2:pixelLoc(2)+binSize/2);
         
         blurMetricNum = blurMetric(imageSeg);                
         localEntropy = entropy(imageSeg);
         Ig = fft2(double(imageSeg));
-        Iglf = Ig(1:binSizeSmall/5,1:binSizeSmall/5);
-        Ighf = Ig(end-binSizeSmall/5:end,end-binSizeSmall/5:end);
+        Iglf = Ig(1:binSize/5,1:binSize/5);
+        Ighf = Ig(end-binSize/5:end,end-binSize/5:end);
         lowFreqCoeff = mean(log(abs(Iglf(:))));
         highFreqCoeff = mean(log(abs(Ighf(:))));
         
@@ -61,12 +61,9 @@ for i = 1:size(pixelLocationsCurr, 2)
 
         if ~isempty(UlocSmall)
                 meanNormSmall = mean(var([UlocSmall; VlocSmall]'));
-                meanNormLarge = mean(var([UlocLarge; VlocLarge]'));
-                flowCoeff = log(meanNormSmall/meanNormLarge);
-                if flowCoeff < -20
-                    flowCoeff = 0;
-                end
-        else
+            meanNormLarge = mean(var([UlocLarge; VlocLarge]'));
+         flowCoeff = log(meanNormSmall/meanNormLarge);
+            else
             flowCoeff = 0;
         end
    
