@@ -1,5 +1,5 @@
 close all;
-load('2011_09_26_drive_0027_sync_learnedPredSpaceIter10Step.mat')
+load('2011_09_26_drive_0005_sync_learnedPredSpaceIter10StepVar.mat')
 %scatter(learnedPredSpace.weights, zeros(1, length(learnedPredSpace.weights)))
 
 %%

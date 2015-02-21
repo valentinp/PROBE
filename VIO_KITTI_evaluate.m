@@ -4,10 +4,12 @@ addpath('libviso2');
 addpath('datasets/extraction/utils');
 addpath('datasets/extraction/utils/devkit');
 addpath('utils');
-dataBaseDir = '/Users/valentinp/Desktop/KITTI/2011_09_26/2011_09_26_drive_0019_sync';
-dataCalibDir = '/Users/valentinp/Desktop/KITTI/2011_09_26';
+dataBaseDir = '/Volumes/STARSExFAT/KITTI/2011_09_26/2011_09_26_drive_0117_sync';
+dataCalibDir = '/Volumes/STARSExFAT/KITTI/2011_09_26';
+
 %% Get ground truth and import data
-frameRange = 1:480;
+frameRange = 1:659;
+
 %Image data
 leftImageData = loadImageData([dataBaseDir '/image_00'], frameRange);
 rightImageData = loadImageData([dataBaseDir '/image_01'], frameRange);
@@ -57,7 +59,7 @@ param.match_binsize          = 50;  % matching bin width/height (affects efficie
 param.match_radius           = 200; % matching radius (du/dv in pixels)
 param.match_disp_tolerance   = 1;   % du tolerance for stereo matches (in pixels)
 param.outlier_disp_tolerance = 5;   % outlier removal: disparity tolerance (in pixels)
-param.outlier_flow_tolerance = 1;   % outlier removal: flow tolerance (in pixels)
+param.outlier_flow_tolerance = 5;   % outlier removal: flow tolerance (in pixels)
 param.multi_stage            = 1;   % 0=disabled,1=multistage matching (denser and faster)
 param.half_resolution        = 1;   % 0=disab3led,1=match at half resolution, refine at full resolution
 param.refinement             = 0;   % refinement (0=none,1=pixel,2=subpixel)
@@ -66,23 +68,37 @@ param.refinement             = 0;   % refinement (0=none,1=pixel,2=subpixel)
 addpath('settings');
 addpath('utils');
 addpath('learning');
-useWeights = true;
 
 R = 4*eye(4);
 optParams = {};
-optParams.RANSACCostThresh = 0.001;
-%Aggressive
-%optParams.RANSACMaxIterations = round(log(1-0.9999)/log(1-(1-0.5)^3));
-%Normal
-optParams.RANSACMaxIterations = round(log(1-0.99)/log(1-(1-0.5)^3));
-
+optParams.RANSACCostThresh = 1e-3;
+optParams.OutlierThresh = 1e-4;
+optParams.maxProbeWeight = 100;
+trialType = 3;
+switch trialType
+    case 1
+        useWeights = false;
+        optParams.RANSACMaxIterations = round(log(1-0.99)/log(1-(1-0.5)^3));
+        caseString = 'nominal';
+    case 2
+        useWeights = false;
+        optParams.RANSACMaxIterations = round(log(1-0.9999)/log(1-(1-0.5)^3));
+        caseString = 'aggressive';
+    case 3
+        useWeights = true;
+        caseString = 'probe';
+end
 optParams.maxGNIter = 10;
 optParams.lineLambda = 0.75;
 optParams.LMlambda = 1e-5;
 optParams
-
+caseString
 %% Load model
-load('learnedProbeModels/2011_09_26_drive_0035_sync_learnedPredSpaceIter10Step.mat');
+learnedModelFileName='2011_09_26_drive_0005_sync_learnedPredSpaceIter10StepVar.mat';
+learnedParams.k = 100;
+learnedParams.gamma = 8;
+
+load(['learnedProbeModels/' learnedModelFileName]);
 searchObject = KDTreeSearcher(learnedPredSpace.predVectors');
 refWeight = mean(learnedPredSpace.weights);
 
@@ -90,11 +106,11 @@ refWeight = mean(learnedPredSpace.weights);
 %% Main loop
 
 % create figure
-figure('Color',[1 1 1]);
-ha1 = axes('Position',[0.05,0.7,0.9,0.25]);
-%axis off;
-ha2 = axes('Position',[0.05,0.05,0.9,0.6]);
-axis equal, grid on, hold on;
+% figure('Color',[1 1 1]);
+% ha1 = axes('Position',[0.05,0.7,0.9,0.25]);
+% %axis off;
+% ha2 = axes('Position',[0.05,0.05,0.9,0.6]);
+% axis equal, grid on, hold on;
  
 rng('shuffle');
 % init matcher
@@ -166,15 +182,16 @@ for frame=2:skipFrames:numFrames
 
     %If desired find optimal weight for each observation.
     if useWeights
-          inliers = 1:size(p_f1_1,2);
+          [p_f1_1, p_f2_2, inliers] = findInliers(p_f1_1, p_f2_2, T_21_cam(1:3,1:3), optParams);
+          fprintf('Processing %d points', length(inliers));
           [predVectors] = computePredVectors( p_matched(1:2,inliers), I1, I1prev, [imuData.measAccel(:, frame); imuData.measOmega(:, frame-1)]);
-            predWeightList = getPredVectorWeight(predVectors, searchObject, learnedPredSpace.weights, refWeight, learnedPredSpace.gamma);
+            predWeightList = getPredVectorWeight(predVectors, searchObject, learnedPredSpace.weights, refWeight, learnedParams);
             R_1 = [];
             thresholdPruneIdx = [];
             r_i = 1;
             for p_i = 1:length(predWeightList)
                 predWeight = predWeightList(p_i);
-                if predWeight > 50
+                if predWeight > optParams.maxProbeWeight
                     thresholdPruneIdx(end+1) = p_i;
                 else
                     R_1(:,:,r_i) = predWeight*R;
@@ -198,7 +215,7 @@ for frame=2:skipFrames:numFrames
 %       axis off;
       
         
-        fprintf('mean pred weight: %.5f \n',mean(predWeightList));
+        fprintf('Median pred weight: %.5f \n',median(predWeightList));
         R_2 = R_1;
         T_21_est = scalarWeightedPointCloudAlignment(p_f1_1, p_f2_2,T_21_cam(1:3,1:3));
     else
@@ -229,44 +246,41 @@ end
 % close matcher
 matcherMex('close');
 
-p_vi_i = NaN(3, size(T_wCam_GT,3));
-for j = frameRange
-    T_wcam_gt =  inv(T_wCam_GT(:,:,1))*T_wCam_GT(:,:, j);
-    p_vi_i(:,j) = T_wcam_gt(1:3,4);
-end
-translation = NaN(3, size(T_wcam_hist, 3));
-for i = 1:size(T_wcam_hist, 3)
-    T_wcam =  T_wcam_hist(:, :, i);
-    translation(:,i) = T_wcam(1:3, 4);
-end
-
-%Plot error and variances
-transErrVec = zeros(3, length(frameRange));
-for i = frameRange
-    transErrVec(:,i) = translation(:, i) - p_vi_i(:,i);
-end
-meanRMSE = mean(sqrt(sum(transErrVec.^2,1)/3));
-finalErrorNorm = norm(transErrVec(:,end));
-
+p_camw_w_gt = NaN(3, size(T_wCam_GT,3));
 totalDist = 0;
-p_vi_i = NaN(3, size(T_wCam_GT,3));
 for j = frameRange
     if j > 1
         T_12 = inv(T_wCam_GT(:,:,j-1))*T_wCam_GT(:,:, j);
         totalDist = totalDist + norm(T_12(1:3,4));
     end
     T_wcam_gt =  inv(T_wCam_GT(:,:,1))*T_wCam_GT(:,:, j);
-    p_vi_i(:,j) = T_wcam_gt(1:3,4);
+    p_camw_w_gt(:,j) = T_wcam_gt(1:3,4);
 end
+totalDist
+p_camw_w = NaN(3, size(T_wcam_hist, 3));
+for i = 1:size(T_wcam_hist, 3)
+    T_wcam =  T_wcam_hist(:, :, i);
+    p_camw_w(:,i) = T_wcam(1:3, 4);
+end
+
+%Plot error and variances
+transErrVec = zeros(3, length(frameRange));
+for i = frameRange
+    transErrVec(:,i) = p_camw_w(:, i) - p_camw_w_gt(:,i);
+end
+meanRMSE = mean(sqrt(sum(transErrVec.^2,1)/3));
+finalErrorNorm = norm(transErrVec(:,end));
 
 fprintf('Total Distance: %.3f \n',totalDist);
 fprintf('ARMSE/Final Error Norm: (%.3f/%.3f) \n',meanRMSE, finalErrorNorm);
 
-%% Create Search Tree
-% f = strsplit(dataBaseDir, '/');
-% f = strsplit(char(f(end)), '.');
-% fileName = char(f(1));
-% save(sprintf('plots/%s_probepath.mat', fileName), 'translation');
+
+f = strsplit(dataBaseDir, '/');
+f = strsplit(char(f(end)), '.');
+fileName = char(f(1));
+save(sprintf('trials/%s_%s.mat', fileName, caseString), 'T_wCam_GT','frameRange','totalDist' , ...
+    'T_wcam_hist', 'p_camw_w_gt', 'p_camw_w', 'meanRMSE','finalErrorNorm', 'optParams', 'learnedModelFileName', 'learnedParams');
+
 
 
 

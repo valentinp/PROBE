@@ -1,13 +1,14 @@
 disp('===========================');
+clear;
 addpath('libviso2');
 addpath('datasets/extraction/utils');
 addpath('datasets/extraction/utils/devkit');
 addpath('utils');
 addpath('learning');
-dataBaseDir = '/Users/valentinp/Desktop/KITTI/2011_09_26/2011_09_26_drive_0005_sync';
+dataBaseDir = '/Users/valentinp/Desktop/KITTI/2011_09_26/2011_09_26_drive_0104_sync';
 dataCalibDir = '/Users/valentinp/Desktop/KITTI/2011_09_26';
 %% Get ground truth and import data
-frameRange = 1:153;
+frameRange = 1:310;
 %%Image data
 leftImageData = loadImageData([dataBaseDir '/image_00'], frameRange);
 rightImageData = loadImageData([dataBaseDir '/image_01'], frameRange);
@@ -156,8 +157,11 @@ for frame=2:skipFrames:numFrames
     numLm = size(p_f1_1,2);
     skip = floor(numLm/repeatIter);
     buckets = [1:skip:numLm - mod(numLm, skip); skip:skip:numLm];
-
+    
+    
     selectIdx = buckets(1, repeat_i):buckets(2, repeat_i);
+    rng(42); randOrder = randperm(numLm,numLm);
+    selectIdx = randOrder(selectIdx);
     
     p_f1_1 = p_f1_1(:, selectIdx);
     p_f2_2 = p_f2_2(:, selectIdx);
@@ -227,7 +231,7 @@ transErrVec = zeros(3, length(frameRange));
 for i = frameRange
     transErrVec(:,i) = translation(:, i) - p_vi_i(:,i);
 end
-meanRMSE = mean(sqrt(sum(transErrVec.^2,1)/3));
+meanRMSE = mean(sqrt(sum(transErrVec.^2,1)/3))
 
 
 
@@ -269,126 +273,126 @@ save(sprintf('plots/%s_paths.mat', fileName), 'p_wcam_hist', 'p_wcam_w_gt');
 
 
 %% Find the best exponent
-searchObject = KDTreeSearcher(learnedPredSpace.predVectors');
-refWeight = mean(learnedPredSpace.weights);
-rng('shuffle');
-gammaList = 2:2:20;
-rmseList = NaN(1, length(gammaList));
-g = 1;
-for gamma = gammaList
-    
-% init matcher
-param.nms_n = 10;
-matcherMex('init',param);
-% push back first images
-I1prev = uint8(leftImageData.rectImages(:,:,1));
-I2prev = uint8(rightImageData.rectImages(:,:,1));
-matcherMex('push',I1prev,I2prev); 
-numFrames = size(leftImageData.rectImages, 3);
-k = 1;
-T_wcam = eye(4);
-T_wcam_hist = T_wcam;
-
-% history variables
-firstState.C_vi = eye(3);
-firstState.r_vi_i = zeros(3,1);
-firstState.k = 1;
-oldState = firstState;
-
-h = waitbar(0, sprintf('Evaluating gamma=%d ...', gamma));
-
-for frame=2:skipFrames:numFrames
-    waitbar(frame / numFrames)
-    %IMU Data
-    imuMeasurement.omega = imuData.measOmega(:, frame-1);
-    imuMeasurement.v = imuData.measVel(:, frame-1);
-    deltaT = imuData.timestamps(frame) - imuData.timestamps(frame-1);
-    
-    %Get an estimate through IMU propagation
-    newState = propagateState(oldState, imuMeasurement, deltaT);
-    T_21_imu = getTransformation(oldState, newState);
-    T_21_cam = T_camimu*T_21_imu*inv(T_camimu);
-    oldState = newState;
-
-    % read current images
-    I1 = uint8(leftImageData.rectImages(:,:,frame));
-    I2 = uint8(rightImageData.rectImages(:,:,frame));
-    
- 
-    matcherMex('push',I1,I2); 
-    % match images
-    matcherMex('match',2);
-    p_matched = matcherMex('get_matches',2);
-    %Triangulate points and prune any at Infinity
-    [p_f1_1, p_f2_2] = triangulateAllPointsDirect(p_matched, calibParams);
-    pruneId = isinf(p_f1_1(1,:)) | isinf(p_f1_1(2,:)) | isinf(p_f1_1(3,:)) | isinf(p_f2_2(1,:)) | isinf(p_f2_2(2,:)) | isinf(p_f2_2(3,:));
-    p_f1_1 = p_f1_1(:, ~pruneId);
-    p_f2_2 = p_f2_2(:, ~pruneId);
-    
-    inliers = 1:size(p_f1_1,2);
-    %Calculate weights
-      [predVectors] = computePredVectors( p_matched(1:2,inliers), I1, I1prev, [imuData.measAccel(:, frame); imuData.measOmega(:, frame-1)]);
-        predWeightList = getPredVectorWeight(predVectors, searchObject, learnedPredSpace.weights, refWeight, gamma);
-        R_1 = [];
-        thresholdPruneIdx = [];
-        r_i = 1;
-        for p_i = 1:length(predWeightList)
-            predWeight = predWeightList(p_i);
-            if predWeight > 100
-                thresholdPruneIdx(end+1) = p_i;
-            else
-                R_1(:,:,r_i) = predWeight*R;
-                r_i = r_i + 1;
-            end
-        end
-        inliers(thresholdPruneIdx) = [];
-        p_f1_1(:, thresholdPruneIdx) = [];
-        p_f2_2(:, thresholdPruneIdx) = [];
-        predWeightList(thresholdPruneIdx) = [];
-        R_2 = R_1;
-        T_21_est = scalarWeightedPointCloudAlignment(p_f1_1, p_f2_2,T_21_cam(1:3,1:3));
-
-    
-    
-    T_21_opt = matrixWeightedPointCloudAlignment(p_f1_1, p_f2_2, R_1, R_2, T_21_est, calibParams, optParams);
-    
-    T_wcam = T_wcam*inv(T_21_opt);
-    T_wcam_hist(:,:,end+1) = T_wcam;
-
-    I1prev = I1;
-    I2prev = I2;
-    k = k + 1;
-end
-
-% close matcher
-matcherMex('close');
-
-p_vi_i = NaN(3, size(T_wCam_GT,3));
-for j = frameRange
-    T_wcam_gt =  inv(T_wCam_GT(:,:,1))*T_wCam_GT(:,:, j);
-    p_vi_i(:,j) = T_wcam_gt(1:3,4);
-end
-translation = NaN(3, size(T_wcam_hist, 3));
-for i = 1:size(T_wcam_hist, 3)
-    T_wcam =  T_wcam_hist(:, :, i);
-    translation(:,i) = T_wcam(1:3, 4);
-end
-
-%Plot error and variances
-transErrVec = zeros(3, length(frameRange));
-for i = frameRange
-    transErrVec(:,i) = translation(:, i) - p_vi_i(:,i);
-end
-meanRMSE = mean(sqrt(sum(transErrVec.^2,1)/3));
-fprintf('gamma: %d, ARMSE: %.3f \n',gamma,meanRMSE);
-rmseList(g) = meanRMSE;
-close(h);
-g = g + 1;
-end
+% searchObject = KDTreeSearcher(learnedPredSpace.predVectors');
+% refWeight = mean(learnedPredSpace.weights);
+% rng('shuffle');
+% gammaList = 10:2:20;
+% rmseList = NaN(1, length(gammaList));
+% g = 1;
+% for gamma = gammaList
+%     
+% % init matcher
+% param.nms_n = 10;
+% matcherMex('init',param);
+% % push back first images
+% I1prev = uint8(leftImageData.rectImages(:,:,1));
+% I2prev = uint8(rightImageData.rectImages(:,:,1));
+% matcherMex('push',I1prev,I2prev); 
+% numFrames = size(leftImageData.rectImages, 3);
+% k = 1;
+% T_wcam = eye(4);
+% T_wcam_hist = T_wcam;
+% 
+% % history variables
+% firstState.C_vi = eye(3);
+% firstState.r_vi_i = zeros(3,1);
+% firstState.k = 1;
+% oldState = firstState;
+% 
+% h = waitbar(0, sprintf('Evaluating gamma=%d ...', gamma));
+% 
+% for frame=2:skipFrames:numFrames
+%     waitbar(frame / numFrames)
+%     %IMU Data
+%     imuMeasurement.omega = imuData.measOmega(:, frame-1);
+%     imuMeasurement.v = imuData.measVel(:, frame-1);
+%     deltaT = imuData.timestamps(frame) - imuData.timestamps(frame-1);
+%     
+%     %Get an estimate through IMU propagation
+%     newState = propagateState(oldState, imuMeasurement, deltaT);
+%     T_21_imu = getTransformation(oldState, newState);
+%     T_21_cam = T_camimu*T_21_imu*inv(T_camimu);
+%     oldState = newState;
+% 
+%     % read current images
+%     I1 = uint8(leftImageData.rectImages(:,:,frame));
+%     I2 = uint8(rightImageData.rectImages(:,:,frame));
+%     
+%  
+%     matcherMex('push',I1,I2); 
+%     % match images
+%     matcherMex('match',2);
+%     p_matched = matcherMex('get_matches',2);
+%     %Triangulate points and prune any at Infinity
+%     [p_f1_1, p_f2_2] = triangulateAllPointsDirect(p_matched, calibParams);
+%     pruneId = isinf(p_f1_1(1,:)) | isinf(p_f1_1(2,:)) | isinf(p_f1_1(3,:)) | isinf(p_f2_2(1,:)) | isinf(p_f2_2(2,:)) | isinf(p_f2_2(3,:));
+%     p_f1_1 = p_f1_1(:, ~pruneId);
+%     p_f2_2 = p_f2_2(:, ~pruneId);
+%     
+%     inliers = 1:size(p_f1_1,2);
+%     %Calculate weights
+%       [predVectors] = computePredVectors( p_matched(1:2,inliers), I1, I1prev, [imuData.measAccel(:, frame); imuData.measOmega(:, frame-1)]);
+%         predWeightList = getPredVectorWeight(predVectors, searchObject, learnedPredSpace.weights, refWeight, gamma);
+%         R_1 = [];
+%         thresholdPruneIdx = [];
+%         r_i = 1;
+%         for p_i = 1:length(predWeightList)
+%             predWeight = predWeightList(p_i);
+%             if predWeight > 100
+%                 thresholdPruneIdx(end+1) = p_i;
+%             else
+%                 R_1(:,:,r_i) = predWeight*R;
+%                 r_i = r_i + 1;
+%             end
+%         end
+%         inliers(thresholdPruneIdx) = [];
+%         p_f1_1(:, thresholdPruneIdx) = [];
+%         p_f2_2(:, thresholdPruneIdx) = [];
+%         predWeightList(thresholdPruneIdx) = [];
+%         R_2 = R_1;
+%         T_21_est = scalarWeightedPointCloudAlignment(p_f1_1, p_f2_2,T_21_cam(1:3,1:3));
+% 
+%     
+%     
+%     T_21_opt = matrixWeightedPointCloudAlignment(p_f1_1, p_f2_2, R_1, R_2, T_21_est, calibParams, optParams);
+%     
+%     T_wcam = T_wcam*inv(T_21_opt);
+%     T_wcam_hist(:,:,end+1) = T_wcam;
+% 
+%     I1prev = I1;
+%     I2prev = I2;
+%     k = k + 1;
+% end
+% 
+% % close matcher
+% matcherMex('close');
+% 
+% p_vi_i = NaN(3, size(T_wCam_GT,3));
+% for j = frameRange
+%     T_wcam_gt =  inv(T_wCam_GT(:,:,1))*T_wCam_GT(:,:, j);
+%     p_vi_i(:,j) = T_wcam_gt(1:3,4);
+% end
+% translation = NaN(3, size(T_wcam_hist, 3));
+% for i = 1:size(T_wcam_hist, 3)
+%     T_wcam =  T_wcam_hist(:, :, i);
+%     translation(:,i) = T_wcam(1:3, 4);
+% end
+% 
+% %Plot error and variances
+% transErrVec = zeros(3, length(frameRange));
+% for i = frameRange
+%     transErrVec(:,i) = translation(:, i) - p_vi_i(:,i);
+% end
+% meanRMSE = mean(sqrt(sum(transErrVec.^2,1)/3));
+% fprintf('gamma: %d, ARMSE: %.3f \n',gamma,meanRMSE);
+% rmseList(g) = meanRMSE;
+% close(h);
+% g = g + 1;
+% end
 
 %% Export the entire model
-[~,minIdx]  = min(rmseList);
-learnedPredSpace.gamma = gammaList(minIdx);
+%[~,minIdx]  = min(rmseList);
+learnedPredSpace.gamma = 16%gammaList(minIdx);
 f = strsplit(dataBaseDir, '/');
 f = strsplit(char(f(end)), '.');
 fileName = ['learnedProbeModels/' char(f(1)) '_learnedPredSpaceIter' int2str(repeatIter) 'StepVar.mat'];
