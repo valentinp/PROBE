@@ -18,16 +18,16 @@ param.multi_stage            = 1;   % 0=disabled,1=multistage matching (denser a
 param.half_resolution        = 0;   % 0=disabled,1=match at half resolution, refine at full resolution
 param.refinement             = 0;   % refinement (0=none,1=pixel,2=subpixel)
 
-dataBaseDir = '/Users/valentinp/Desktop/KITTI/2011_09_26/2011_09_26_drive_0051_sync';
-dataCalibDir = '/Users/valentinp/Desktop/KITTI/2011_09_26';
+dataBaseDir = '/Users/valentinp/Desktop/KITTI/2011_10_03/2011_10_03_drive_0047_sync';
+dataCalibDir = '/Users/valentinp/Desktop/KITTI/2011_10_03';
 % Get ground truth and import data
-frameRange = 150:300;
+frameRange = 1:250;
 %Image data
 
 leftImageData = loadImageData([dataBaseDir '/image_00'], frameRange);
 %%
 
-main1 = uint8(leftImageData.rectImages(:,:,frameRange(1)));
+main1 = uint8(leftImageData.rectImages(:,:,1));
 figure
 for frame = frameRange(3:end)
     
@@ -64,7 +64,7 @@ V = p_matched_dense(4,:) - p_matched_dense(2,:);
     
 cla;
 imshow(main2);
-%plotMatch(main2,p_matched_dense,0);
+plotMatch(main2,p_matched_dense,0);
 hold on;
 
 binSizeSmall = 100;
@@ -108,6 +108,10 @@ for f_i = 1:size(p_matched_sparse, 2)
         flowCoeff = 0;
     end
    
+    if isnan(flowCoeff)
+        flowCoeff = 0;
+    end
+    
     radius = 10;
     red = 1/(1 + exp(-flowCoeff));
     green = 1/(1 + exp(flowCoeff));

@@ -4,11 +4,10 @@ addpath('libviso2');
 addpath('datasets/extraction/utils');
 addpath('datasets/extraction/utils/devkit');
 addpath('utils');
-dataBaseDir = '/Volumes/STARSExFAT/KITTI/2011_09_26/2011_09_26_drive_0117_sync';
-dataCalibDir = '/Volumes/STARSExFAT/KITTI/2011_09_26';
-
+dataBaseDir = '/Users/valentinp/Desktop/KITTI/2011_09_30/2011_09_30_drive_0016_sync';
+dataCalibDir = '/Users/valentinp/Desktop/KITTI/2011_09_30';
 %% Get ground truth and import data
-frameRange = 1:659;
+frameRange = 1:278;
 
 %Image data
 leftImageData = loadImageData([dataBaseDir '/image_00'], frameRange);
@@ -59,7 +58,7 @@ param.match_binsize          = 50;  % matching bin width/height (affects efficie
 param.match_radius           = 200; % matching radius (du/dv in pixels)
 param.match_disp_tolerance   = 1;   % du tolerance for stereo matches (in pixels)
 param.outlier_disp_tolerance = 5;   % outlier removal: disparity tolerance (in pixels)
-param.outlier_flow_tolerance = 5;   % outlier removal: flow tolerance (in pixels)
+param.outlier_flow_tolerance = 3;   % outlier removal: flow tolerance (in pixels)
 param.multi_stage            = 1;   % 0=disabled,1=multistage matching (denser and faster)
 param.half_resolution        = 1;   % 0=disab3led,1=match at half resolution, refine at full resolution
 param.refinement             = 0;   % refinement (0=none,1=pixel,2=subpixel)
@@ -71,8 +70,8 @@ addpath('learning');
 
 R = 4*eye(4);
 optParams = {};
-optParams.RANSACCostThresh = 1e-3;
-optParams.OutlierThresh = 1e-4;
+optParams.RANSACCostThresh = 1e-5;
+optParams.OutlierThresh = 1e-3;
 optParams.maxProbeWeight = 100;
 trialType = 3;
 switch trialType
@@ -94,7 +93,7 @@ optParams.LMlambda = 1e-5;
 optParams
 caseString
 %% Load model
-learnedModelFileName='2011_09_26_drive_0005_sync_learnedPredSpaceIter10StepVar.mat';
+learnedModelFileName='2011_09_26_drive_0015_sync_learnedPredSpaceIter10StepVar.mat';
 learnedParams.k = 100;
 learnedParams.gamma = 8;
 
@@ -306,7 +305,7 @@ save(sprintf('trials/%s_%s.mat', fileName, caseString), 'T_wCam_GT','frameRange'
 totalDist = 0;
 p_vi_i = NaN(3, size(T_wCam_GT,3));
 for j = frameRange
-    if j > 1
+    if j > 1    
         T_12 = inv(T_wCam_GT(:,:,j-1))*T_wCam_GT(:,:, j);
         totalDist = totalDist + norm(T_12(1:3,4));
     end

@@ -5,10 +5,11 @@ addpath('datasets/extraction/utils');
 addpath('datasets/extraction/utils/devkit');
 addpath('utils');
 addpath('learning');
-dataBaseDir = '/Users/valentinp/Desktop/KITTI/2011_09_26/2011_09_26_drive_0104_sync';
+dataBaseDir = '/Users/valentinp/Desktop/KITTI/2011_09_26/2011_09_26_drive_0029_sync';
 dataCalibDir = '/Users/valentinp/Desktop/KITTI/2011_09_26';
 %% Get ground truth and import data
-frameRange = 1:310;
+frameRange = 1:300;
+
 %%Image data
 leftImageData = loadImageData([dataBaseDir '/image_00'], frameRange);
 rightImageData = loadImageData([dataBaseDir '/image_01'], frameRange);
