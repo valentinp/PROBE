@@ -4,10 +4,12 @@ disp('===========================');
 addpath('libviso2');
 addpath('utils');
 addpath('learning');
+addpath('groundtruth/');
 
 
 addpath('~/Dropbox/PhD/Code/MATLAB/matlab_rosbag-0.4-mac64/');
-rosBagFileName = '/Users/valentinp/Desktop/Pioneer-VI/2015-02-18-12-24-23.bag';
+rosBagFileName = '/Users/valentinp/Desktop/Pioneer-VI/2015-02-18-12-43-18.bag';
+gpsFile = '/Users/valentinp/Desktop/Pioneer-VI/GPS/rover3_rtk.mat';
 
 %Set up topics
 viRightCamTopic = '/right/image_rect';
@@ -19,8 +21,11 @@ bag = ros.Bag.load(rosBagFileName);
 bag.info()
 bagImageRightVIData = bag.readAll({viRightCamTopic});
 bagImageLeftVIData = bag.readAll({viLeftCamTopic});
-viLeftcalib = bag.readAll({'/cam0/camera_info'}); %right
-viRightcalib = bag.readAll({'/cam1/camera_info'}); %left
+
+%right
+viLeftcalib = bag.readAll({'/cam0/camera_info'}); 
+%left
+viRightcalib = bag.readAll({'/cam1/camera_info'}); 
 bagImuData = bag.readAll({imuTopic});
 
 viImageSize = [752 480];
@@ -67,10 +72,10 @@ addpath('learning');
 
 R = 25*eye(4);
 optParams = {};
-optParams.RANSACCostThresh = 1e-4;
-optParams.OutlierThresh = 0.5e-3;
+optParams.RANSACCostThresh = 1e-2;
+optParams.OutlierThresh = 1e-3;
 optParams.maxProbeWeight = 100;
-trialType = 3;
+trialType = 1;
 switch trialType
     case 1
         useWeights = false;
@@ -90,22 +95,23 @@ optParams.LMlambda = 1e-5;
 optParams
 caseString
 %% Extract IMU timestamps
-%Subtract gravity
 imuData = NaN(6, length(bagImuData));
 imuDataTimeStamps = NaN(1, length(bagImuData));
 for imu_i=1:length(bagImuData)
     imuDataTimeStamps(imu_i) = bagImuData{imu_i}.header.stamp.time;
     imuData(:, imu_i) = [bagImuData{imu_i}.linear_acceleration; bagImuData{imu_i}.angular_velocity];
 end
-
-%% Load model
-learnedModelFileName='2015-02-18-12-43-18_learnedPredSpaceIter10.mat';
-learnedParams.k = 30;
-learnedParams.gamma = 50;
-
-load(['learnedProbeModels/' learnedModelFileName]);
-searchObject = KDTreeSearcher(learnedPredSpace.predVectors');
-refWeight = mean(learnedPredSpace.weights);
+%% Extract GPS timestamps
+% Calculate GPS Time
+rtk_data = load(gpsFile);
+gpsStartTime = rtk_data.initialTime;
+gpsPointsNum = size(rtk_data.xyz,1);
+timeComponents = strsplit(gpsStartTime, ':');
+timeVec = [2015,2,18,str2num(timeComponents{1}),str2num(timeComponents{2}), str2num(timeComponents{3})];
+gpsStartMatlabDateNum = datenum(timeVec);
+datestr(gpsStartMatlabDateNum)
+gpsStartUnixTime = double((gpsStartMatlabDateNum - 719529)*86400 + 5*3600);
+gpsTimeStamps = double(1:gpsPointsNum) + gpsStartUnixTime;
 
 %%
 %create figure
@@ -115,11 +121,27 @@ ha1 = axes('Position',[0.05,0.7,0.9,0.25]);
 axis off;
 ha2 = axes('Position',[0.05,0.05,0.9,0.6]);
 axis equal, grid on, hold on;
-% gt = load('2015-02-13-18-28-05-1loop_GroundTruth.mat');
-% plot(gt.p_camw_w_gt(1,:), gt.p_camw_w_gt(3,:),'-k');
+%% Which frames do we want to use
+frameList = first_frame+1:3:last_frame;
+%% Extract camera times
+camTimeStamps = NaN(1, length([1 frameList]));
+k = 1;
+for cam_i=[1 frameList]
+    camTimeStamps(k) = bagImageLeftVIData{cam_i}.header.stamp.time;
+    k = k + 1;
+end
 
 %%
-rng(42);
+repeatIter =  10;
+meanRMSEHist = [];
+learnedPredSpace = {};
+learnedPredSpace.predVectors = [];
+learnedPredSpace.weights = [];
+p_wcam_hist = [];
+
+for repeat_i = 1:repeatIter
+rng('shuffle');
+usedPredVectors = [];
 % init matcher
 matcherMex('init',param);
 
@@ -140,7 +162,8 @@ xState = xInit;
 k =1;
 T_wcam = eye(4);
 T_wcam_hist = T_wcam;
-frameList = first_frame+1:3:last_frame;
+p_wcam_hist(:, 1, repeat_i) = zeros(3,1);
+
 for frame=frameList
   
   
@@ -176,7 +199,7 @@ for frame=frameList
 
     
     %Triangulate points and prune any at Infinity
-    numFts = 25;
+    numFts = 100;
          
     if size(p_matched,2) > numFts
         selectIdx = randperm(size(p_matched,2), numFts);
@@ -185,159 +208,141 @@ for frame=frameList
     end
     p_matched = p_matched(:,selectIdx);
     [p_f1_1, p_f2_2] = triangulateAllPointsDirect(p_matched, calibParams);
-    %[predVectors] = computePredVectors( p_matched(1:2,:), I1, imuDataWindow(:,end));
+       pruneId = isinf(p_f1_1(1,:)) | isinf(p_f1_1(2,:)) | isinf(p_f1_1(3,:)) | isinf(p_f2_2(1,:)) | isinf(p_f2_2(2,:)) | isinf(p_f2_2(3,:));
+    p_f1_1 = p_f1_1(:, ~pruneId);
+    p_f2_2 = p_f2_2(:, ~pruneId);
     
-      %Show image
-%    imagesc(I1);
-%    axis off; 
-%     if mod(frame, 5) == 0
-%         axes(ha1); cla;
-%         imagesc(I1);
-%         viscircles(p_matched(5:6,:)', ones(1, size(p_matched,2)));
-%         colormap(gray);
-%        % showMatchedFeatures(I1, I2, p_matched(1:2,:)', p_matched(3:4,:)');
-%         %drawnow;
-%     end
-
-     pruneId = isinf(p_f1_1(1,:)) | isinf(p_f1_1(2,:)) | isinf(p_f1_1(3,:)) | isinf(p_f2_2(1,:)) | isinf(p_f2_2(2,:)) | isinf(p_f2_2(3,:));
-     p_f1_1 = p_f1_1(:, ~pruneId);
-     p_f2_2 = p_f2_2(:, ~pruneId);
- 
-
-
-    %If desired find optimal weight for each observation.
-    if useWeights
-          [p_f1_1, p_f2_2, inliers] = findInliers(p_f1_1, p_f2_2, C_21_est, optParams);
-          fprintf('Processing %d points', length(inliers));
-            [predVectors] = computePredVectors( p_matched(1:2,inliers), I1, I1prev, imuDataWindow(:, end));
-            predWeightList = getPredVectorWeight(predVectors, searchObject, learnedPredSpace.weights, refWeight, learnedParams);
-            R_1 = [];
-            thresholdPruneIdx = [];
-            r_i = 1;
-            for p_i = 1:length(predWeightList)
-                predWeight = predWeightList(p_i);
-                if predWeight > optParams.maxProbeWeight
-                    thresholdPruneIdx(end+1) = p_i;
-                else
-                    R_1(:,:,r_i) = predWeight*R;
-                    r_i = r_i + 1;
-                end
-            end
-            inliers(thresholdPruneIdx) = [];
-            p_f1_1(:, thresholdPruneIdx) = [];
-            p_f2_2(:, thresholdPruneIdx) = [];
-            predWeightList(thresholdPruneIdx) = [];
-            fprintf('Threw out %d obs. \n', length(thresholdPruneIdx));
-
-            %Plot image
-%       axes(ha1); cla;
-%       %imagesc(I1);
-%       %hold on;
-%       imagesc(I1); colormap('gray');
-%       hold on;
-%       viscircles(p_matched(5:6, inliers)',predWeightList);
-%       %showMatchedFeatures(I1,I2,p_matched(5:6,inliers)', p_matched(7:8,inliers)'); 
-%       axis off;
-      
-        
-        fprintf('Median pred weight: %.5f \n',median(predWeightList));
-        R_2 = R_1;
-        T_21_est = scalarWeightedPointCloudAlignment(p_f1_1, p_f2_2,C_21_est);
-    else
-        [p_f1_1, p_f2_2, T_21_est, inliers] = findInliersRot(p_f1_1, p_f2_2, C_21_est, optParams);
-        fprintf('RANSAC removed %d/%d points', length(selectIdx)- length(inliers), length(selectIdx));
-        R_1 = repmat(R, [1 1 size(p_f1_1, 2)]);
-        R_2 = R_1;
-    end
+    %Select a subset
+    %selectIdx = randperm(size(p_f1_1,2), 5);
+    numLm = size(p_f1_1,2);
+    skip = floor(numLm/repeatIter);
+    buckets = [1:skip:numLm - mod(numLm, skip); skip:skip:numLm];
     
     
+    selectIdx = buckets(1, repeat_i):buckets(2, repeat_i);
+    rng(42); randOrder = randperm(numLm,numLm);
+    selectIdx = randOrder(selectIdx);
+    
+    p_f1_1 = p_f1_1(:, selectIdx);
+    p_f2_2 = p_f2_2(:, selectIdx);
+    p_matched = p_matched(:, selectIdx);
+    inliers = 1:size(p_f1_1,2);
+
+    %Find inliers based on rotation matrix from IMU
+     %[p_f1_1, p_f2_2, T_21_est, inliers] = findInliersRot(p_f1_1, p_f2_2, T_21_cam(1:3,1:3), optParams);
+    [predVectors] = computePredVectors( p_matched(1:2,inliers), I1, I1prev, imuDataWindow(:, end));
+    %usedPredVectors(:,end+1:end+size(predVectors, 2)) = predVectors;
+    %fprintf('Tracking %d features.', size(p_f1_1,2));
+    
+    %Calculate initial guess using scalar weights, then use matrix weighted
+    %non linear optimization
+
+    R_1 = repmat(R, [1 1 size(p_f1_1, 2)]);
+    R_2 = R_1;
+    T_21_est = scalarWeightedPointCloudAlignment(p_f1_1, p_f2_2,C_21_est);
     T_21_opt = matrixWeightedPointCloudAlignment(p_f1_1, p_f2_2, R_1, R_2, T_21_est, calibParams, optParams);
+
     
+    
+    %Prune any vectors with 0 entries
+    pruneWeightsIdx = predVectors(1,:) == 0 | predVectors(2,:) == 0 | predVectors(3,:) == 0 | predVectors(4,:) == 0 | predVectors(5,:) == 0 | predVectors(6,:) == 0 | predVectors(7,:) == 0;
+    predVectors = predVectors(:,~pruneWeightsIdx);
+    usedPredVectors(:,end+1:end+size(predVectors, 2)) = predVectors;
+
+   
+ 
     T_wcam = T_wcam*inv(T_21_opt);
     T_wcam_hist(:,:,end+1) = T_wcam;
-       
     
-    % update trajectory
-%         if mod(frame, 5) == 0
-%          axes(ha2);
-%         plot(T_wcam(1,4),T_wcam(3,4),'b*');
-%          hold on;
-%          grid on;
-%          drawnow();
-%         end
+    p_wcam_hist(:, frame, repeat_i) = T_wcam(1:3,4);
+    
+    % update trajectory and plot
+%     axes(ha2);
+%     plot(T_wcam(1,4),T_wcam(3,4),'g*');
+%     hold on;
+%     grid on;
+%    drawnow();
     I1prev = I1;
     I2prev = I2;
-        k = k + 1;
-        fprintf('k:%d \n',k);
+    k = k + 1;
+    fprintf('k:%d, repeat_i: %d \n',k,repeat_i);
 end
 
 % close matcher
 matcherMex('close');
-%% Extract camera times
-camTimeStamps = NaN(1, length([1 frameList]));
-k = 1;
-for cam_i=[1 frameList]
-    camTimeStamps(k) = bagImageLeftVIData{cam_i}.header.stamp.time;
-    k = k + 1;
-end
 
-%%
-
-% f = strsplit(rosBagFileName, '/');
-% f = strsplit(char(f(end)), '.');
-% fileName = char(f(1));
-% save(['groundtruth/' fileName '_VIO.mat'], 'T_wcam_hist');
-%%
-close all
-addpath('groundtruth/');
-figure
+%Calculate error
 translation = NaN(3, size(T_wcam_hist, 3));
 for i = 1:size(T_wcam_hist, 3)
     T_wcam =  T_wcam_hist(:, :, i);
     translation(:,i) = T_wcam(1:3, 4);
 end
-plot(translation(1,:),  translation(3,:),'-g', 'LineWidth', 2);
-grid on;
-hold on;
 
-rtk_data = load('/Users/valentinp/Desktop/Pioneer-VI/GPS/rover1_rtk.mat');
-
-[Rgb,Tgb] = icp(translation,rtk_data.xyz');
-
-rtk_registered = Rgb*rtk_data.xyz';
-
-
-
-%plot3(rtk_data.xyz(:,1),rtk_data.xyz(:,2), rtk_data.xyz(:,3),'-k', 'LineWidth', 2);
-plot(rtk_registered(1,:), rtk_registered(3,:),'-k', 'LineWidth', 2);
-%title(fileName);
-xlabel('Right [m]');
-ylabel('Forward [m]');
-legend('VIO', 'RTK GPS', 'Location','NorthWest');
-
-% Calculate GPS Time
-gpsStartTime = rtk_data.initialTime;
-gpsPointsNum = size(rtk_data.xyz,1);
-timeComponents = strsplit(gpsStartTime, ':');
-timeVec = [2015,2,18,str2num(timeComponents{1}),str2num(timeComponents{2}), str2num(timeComponents{3})];
-gpsStartMatlabDateNum = datenum(timeVec);
-datestr(gpsStartMatlabDateNum)
-gpsStartUnixTime = double((gpsStartMatlabDateNum - 719529)*86400 + 5*3600);
-gpsTimeStamps = double(1:gpsPointsNum) + gpsStartUnixTime;
-
+[Rvg,Tvg] = icp(translation,rtk_data.xyz');
+rtk_registered = Rvg*rtk_data.xyz';
 rtk_pos = rtk_registered;
 vio_pos = translation;
 [meanRMSE, transError] = calcGPSRMSE(rtk_pos, gpsTimeStamps, vio_pos, camTimeStamps);
-sqrt(sum(transError.^2/3,1))
-meanRMSE
-%saveas(gcf, ['groundtruth/' fileName '_VIOandGPS.fig']);
 
-%%
+learnedPredSpace.predVectors = [learnedPredSpace.predVectors usedPredVectors];
+learnedPredSpace.weights = [learnedPredSpace.weights meanRMSE*ones(1, size(usedPredVectors,2))];
+
+
+end
+
+learnedPredSpace
+
+%% Save
+f = strsplit(rosBagFileName, '/');
+f = strsplit(char(f(end)), '.');
+fileName = ['learnedProbeModels/' char(f(1)) '_learnedPredSpaceIter' int2str(repeatIter) '.mat'];
+save(fileName, 'learnedPredSpace');
+
+%% Plot Trajectories 
+totalDist = 0;
+p_wcam_w_gt = NaN(3, size(rtk_data.xyz',2));
+for j = size(rtk_data.xyz',2)
+    if j > 1
+        totalDist = totalDist + norm(rtk_data.xyz(j,:) - rtk_data.xyz(j-1,:));
+    end
+end
+
+figure
+for p_i = 1:size(p_wcam_hist,3)
+    plot(p_wcam_hist(1,:,p_i),p_wcam_hist(3,:,p_i), '*b', 'LineWidth', 0.25);
+    hold on;
+end
+%plot(rtk_data.xyz(:,1),p_wcam_w_gt(3,:), '-r', 'LineWidth', 2);
 f = strsplit(rosBagFileName, '/');
 f = strsplit(char(f(end)), '.');
 fileName = char(f(1));
-p_camw_w = translation;
-save(sprintf('trials/%s_%s.mat', fileName, caseString), 'rtk_registered','frameList', ...
-    'T_wcam_hist', 'p_camw_w', 'meanRMSE', 'optParams', 'learnedModelFileName', 'learnedParams');
+
+title(sprintf('Training Runs \n %s', fileName), 'Interpreter', 'none')
+xlabel('x [m]')
+ylabel('z [m]')
+
+%legend('Training Runs', 'Ground Truth')
+grid on;
+saveas(gcf,sprintf('plots/%s_training.fig', fileName));
+save(sprintf('plots/%s_paths.mat', fileName), 'p_wcam_hist', 'p_wcam_w_gt');
+
+
+%%
+
+
+% plot(translation(1,:),  translation(3,:),'-g', 'LineWidth', 2);
+% grid on;
+% hold on;
+
+
+%plot(rtk_registered(1,:), rtk_registered(3,:),'-k', 'LineWidth', 2);
+%title(fileName);
+%xlabel('Right [m]');
+%ylabel('Forward [m]');
+%legend('VIO', 'RTK GPS', 'Location','NorthWest');
+
+
+
+%saveas(gcf, ['groundtruth/' fileName '_VIOandGPS.fig']);
 
 
