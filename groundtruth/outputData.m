@@ -38,10 +38,12 @@ for i = 2:size(run1.xyz,1)
     totalDist = totalDist + norm(run1.xyz(i,:) - run1.xyz(i-1,:));
 end
 totalDist
+totalDist = 0;
 for i = 2:size(run2.xyz,1)
     totalDist = totalDist + norm(run2.xyz(i,:) - run2.xyz(i-1,:));
 end
 totalDist
+totalDist = 0;
 for i = 2:size(run3.xyz,1)
     totalDist = totalDist + norm(run3.xyz(i,:) - run3.xyz(i-1,:));
 end

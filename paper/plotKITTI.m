@@ -8,7 +8,7 @@ fileName = '2011_09_26_drive_0005_sync_paths.mat';
 
 data = load(['../plots/' fileName]);
 figure
-for p_i = 1:size(p_wcam_hist,3)
+for p_i = 1:size(data.p_wcam_hist,3)
     h1 = plot(data.p_wcam_hist(1,:,p_i),data.p_wcam_hist(3,:,p_i), '--b', 'LineWidth', 2);
     hold on;
 end
@@ -31,7 +31,7 @@ export_fig(gcf, sprintf('%s.pdf', fileTitle), '-transparent');
 fileName = '2011_09_26_drive_0046_sync_paths.mat';
 data = load(['../plots/' fileName]);
 figure
-for p_i = 1:size(p_wcam_hist,3)
+for p_i = 1:size(data.p_wcam_hist,3)
     h1 = plot(data.p_wcam_hist(1,:,p_i),data.p_wcam_hist(3,:,p_i), '--b', 'LineWidth', 2);
     hold on;
 end
@@ -54,7 +54,7 @@ export_fig(gcf, sprintf('%s.pdf', fileTitle), '-transparent');
 fileName = '2011_09_26_drive_0015_sync_paths.mat';
 data = load(['../plots/' fileName]);
 figure
-for p_i = 1:size(p_wcam_hist,3)
+for p_i = 1:size(data.p_wcam_hist,3)
     h1 = plot(data.p_wcam_hist(1,:,p_i),data.p_wcam_hist(3,:,p_i), '--b', 'LineWidth', 2);
     hold on;
 end
@@ -91,7 +91,7 @@ ylabel('z [m]')
 set(gca, 'FontSize', fontSize);
 f = strsplit(fileName, '.');
 fileTitle = f{1};
-legend([hnom, hagg,hprobe, hgt], {'Nominal', 'Aggressive', 'Probe', 'Ground Truth'}, 'Location', 'NorthEast');
+legend([hnom, hagg,hprobe, hgt], {'Nominal', 'Aggressive', 'PROBE', 'Ground Truth'}, 'Location', 'NorthEast');
 grid on;
 export_fig(gcf, sprintf('%s_comparison.pdf', kittiRun), '-transparent');
 
@@ -112,7 +112,7 @@ ylabel('z [m]')
 set(gca, 'FontSize', fontSize);
 f = strsplit(fileName, '.');
 fileTitle = f{1};
-legend([hnom, hagg,hprobe, hgt], {'Nominal', 'Aggressive', 'Probe', 'Ground Truth'}, 'Location', 'NorthEast');
+legend([hnom, hagg,hprobe, hgt], {'Nominal', 'Aggressive', 'PROBE', 'Ground Truth'}, 'Location', 'NorthEast');
 grid on;
 export_fig(gcf, sprintf('%s_comparison.pdf', kittiRun), '-transparent');
 
@@ -134,7 +134,7 @@ ylabel('z [m]')
 set(gca, 'FontSize', fontSize);
 f = strsplit(fileName, '.');
 fileTitle = f{1};
-legend([hnom, hagg,hprobe, hgt], {'Nominal', 'Aggressive', 'Probe', 'Ground Truth'}, 'Location', 'NorthEast');
+legend([hnom, hagg,hprobe, hgt], {'Nominal', 'Aggressive', 'PROBE', 'Ground Truth'}, 'Location', 'NorthEast');
 grid on;
 export_fig(gcf, sprintf('%s_comparison.pdf', kittiRun), '-transparent');
 
@@ -176,7 +176,7 @@ ylabel('z [m]')
 set(gca, 'FontSize', fontSize);
 f = strsplit(fileName, '.');
 fileTitle = f{1};
-legend([hnom, hagg,hprobe, hgt], {'Nominal', 'Aggressive', 'Probe', 'Ground Truth'}, 'Location', 'SouthEast');
+legend([hnom, hagg,hprobe, hgt], {'Nominal', 'Aggressive', 'PROBE', 'Ground Truth'}, 'Location', 'SouthEast');
 grid on;
 export_fig(gcf, sprintf('%s_comparison.pdf', kittiRun), '-transparent');
 
@@ -197,6 +197,10 @@ ylabel('z [m]')
 set(gca, 'FontSize', fontSize);
 f = strsplit(fileName, '.');
 fileTitle = f{1};
-legend([hnom, hagg,hprobe, hgt], {'Nominal', 'Aggressive', 'Probe', 'Ground Truth'}, 'Location', 'SouthEast');
+legend([hnom, hagg,hprobe, hgt], {'Nominal', 'Aggressive', 'PROBE', 'Ground Truth'}, 'Location', 'SouthEast');
 grid on;
 export_fig(gcf, sprintf('%s_comparison.pdf', kittiRun), '-transparent');
+
+%% Get some stats
+251.1+245.1+234+322.5+667.8+515.3+410.8+339.9+777.5+405.0
+
