@@ -1,5 +1,5 @@
 close all;
-load('2011_09_26_drive_0005_sync_learnedPredSpaceIter10StepVar.mat')
+load('2015-02-25-16-56-01_learnedPredSpaceIter10.mat')
 %scatter(learnedPredSpace.weights, zeros(1, length(learnedPredSpace.weights)))
 
 %%
@@ -36,7 +36,7 @@ end
 
 %%
 %Perform 10 fold cross validation
-kTestList = 25:100;
+kTestList = 1:5:100;
 
 lw = length(learnedPredSpace.weights);
 numBuckets = 10;
@@ -70,5 +70,5 @@ for b_i = 1:size(buckets,2)
     end
 end
 mean(kAvgErr, 1)
-plot(mean(kAvgErr, 1))
+plot(kTestList,mean(kAvgErr, 1))
 

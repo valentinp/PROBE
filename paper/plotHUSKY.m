@@ -34,25 +34,29 @@ rtk_registered = Rvg*rtk_data.xyz';
 
 h2 = plot(rtk_registered(1,:),rtk_registered(3,:), '-k', 'LineWidth', 2);
 %stitle(sprintf('Training Runs \n %s', fileName), 'Interpreter', 'none')
-xlabel('x [m]')
-ylabel('z [m]')
+% xlabel('x [m]')
+% ylabel('z [m]')
+title('Training');
+fontSize = 30;
 set(gca, 'FontSize', fontSize);
-
+ylim([0 80])
+xlim([-10 100])
 f = strsplit(fileName, '.');
 fileTitle = f{1};
-legend([h1, h2], {'Training Runs', 'Ground Truth Path'}, 'Location', 'SouthEast');
+%legend([h1, h2], {'Training Runs', 'Ground Truth Path'}, 'Location', 'SouthEast');
 grid on;
 
-export_fig(gcf, sprintf('%s.pdf', fileTitle), '-transparent');
+export_fig(gcf, sprintf('%s_small.pdf', fileTitle), '-transparent');
 
 %% Run Comparison
 
 %%  City
+fontSize = 18;
 huskyRun = '2015-02-18-12-33-30';
 dataNom = load(['../trials/' huskyRun '_nominal.mat']);
 dataAgg = load(['../trials/' huskyRun '_aggressive.mat']);
 dataProbe = load(['../trials/' huskyRun '_probe.mat']);
-
+figure
 
 hgt = plot(dataNom.rtk_registered(1,:),dataNom.rtk_registered(3,:), '-k', 'LineWidth', 2);
 hold on;
@@ -64,7 +68,7 @@ ylabel('z [m]')
 set(gca, 'FontSize', fontSize);
 f = strsplit(fileName, '.');
 fileTitle = f{1};
-legend([hnom, hagg,hprobe, hgt], {'Nominal', 'Aggressive', 'PROBE', 'Ground Truth'}, 'Location', 'SouthEast');
+legend([hnom, hagg,hprobe, hgt], {'Nominal', 'Aggressive', 'PROBE', 'Ground Truth'}, 'Location', 'NorthWest');
 grid on;
 export_fig(gcf, sprintf('%s_comparison.pdf', huskyRun), '-transparent');
 

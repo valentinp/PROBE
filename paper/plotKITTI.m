@@ -1,10 +1,10 @@
 %% Set up utilities
 % addpath('/Users/valentinp/Research/MATLAB/export_fig'); %Use Oliver Woodford's awesome export_fig package to get trimmed PDFs
-fontSize = 14;
+fontSize = 18;
 
 %% Plot KITTI training
 %0005,0046, 0015
-fileName = '2011_09_26_drive_0027_sync_paths.mat';
+fileName = '2011_09_26_drive_0005_sync_paths.mat';
 
 data = load(['../plots/' fileName]);
 figure
@@ -23,7 +23,7 @@ f = strsplit(fileName, '.');
 fileTitle = f{1};
 legend([h1, h2], {'Training Runs', 'Ground Truth Path'});
 grid on;
-
+hold on;
 export_fig(gcf, sprintf('%s.pdf', fileTitle), '-transparent');
 
 %% 0046
@@ -45,7 +45,7 @@ set(gca, 'FontSize', fontSize);
 
 f = strsplit(fileName, '.');
 fileTitle = f{1};
-legend([h1, h2], {'Training Runs', 'Ground Truth Path'});
+legend([h1, h2], {'Training Runs', 'Ground Truth Path'}, 'Location', 'SouthWest');
 grid on;
 export_fig(gcf, sprintf('%s.pdf', fileTitle), '-transparent');
 
@@ -53,7 +53,7 @@ export_fig(gcf, sprintf('%s.pdf', fileTitle), '-transparent');
 
 fileName = '2011_09_26_drive_0015_sync_paths.mat';
 data = load(['../plots/' fileName]);
-figure
+%figure
 for p_i = 1:size(data.p_wcam_hist,3)
     h1 = plot(data.p_wcam_hist(1,:,p_i),data.p_wcam_hist(3,:,p_i), '--b', 'LineWidth', 2);
     hold on;
@@ -80,7 +80,7 @@ dataNom = load(['../trials/' kittiRun '_nominal.mat']);
 dataAgg = load(['../trials/' kittiRun '_aggressive.mat']);
 dataPROBE = load(['../trials/' kittiRun '_PROBE.mat']);
 
-
+figure
 hgt = plot(dataNom.p_camw_w_gt(1,:),dataNom.p_camw_w_gt(3,:), '-k', 'LineWidth', 2);
 hold on;
 hnom = plot(dataNom.p_camw_w(1,:),dataNom.p_camw_w(3,:), '-.r', 'LineWidth', 2);
@@ -102,7 +102,7 @@ dataNom = load(['../trials/' kittiRun '_nominal.mat']);
 dataAgg = load(['../trials/' kittiRun '_aggressive.mat']);
 dataPROBE = load(['../trials/' kittiRun '_PROBE.mat']);
 
-
+figure
 hgt = plot(dataNom.p_camw_w_gt(1,:),dataNom.p_camw_w_gt(3,:), '-k', 'LineWidth', 2);
 hold on;
 hnom = plot(dataNom.p_camw_w(1,:),dataNom.p_camw_w(3,:), '-.r', 'LineWidth', 2);
@@ -175,9 +175,9 @@ hPROBE = plot(dataPROBE.p_camw_w(1,:),dataPROBE.p_camw_w(3,:), '-b', 'LineWidth'
 xlabel('x [m]')
 ylabel('z [m]')
 set(gca, 'FontSize', fontSize);
-f = strsplit(fileName, '.');
+f = strsplit(kittiRun, '.');
 fileTitle = f{1};
-legend([hnom, hagg,hprobe, hgt], {'Nominal', 'Aggressive', 'PROBE', 'Ground Truth'}, 'Location', 'SouthEast');
+legend([hnom, hagg,hPROBE, hgt], {'Nominal', 'Aggressive', 'PROBE', 'Ground Truth'}, 'Location', 'SouthEast');
 grid on;
 export_fig(gcf, sprintf('%s_comparison.pdf', kittiRun), '-transparent');
 

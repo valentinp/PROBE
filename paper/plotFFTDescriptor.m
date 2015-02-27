@@ -18,10 +18,12 @@ param.multi_stage            = 1;   % 0=disabled,1=multistage matching (denser a
 param.half_resolution        = 0;   % 0=disabled,1=match at half resolution, refine at full resolution
 param.refinement             = 0;   % refinement (0=none,1=pixel,2=subpixel)
 
-dataBaseDir = '/Users/valentinp/Desktop/KITTI/2011_09_26/2011_09_26_drive_0022_sync';
-dataCalibDir = '/Users/valentinp/Desktop/KITTI/2011_09_26';
+dataBaseDir = '/Users/valentinp/Desktop/KITTI/2011_09_29/2011_09_29_drive_0004_sync';
+dataCalibDir = '/Users/valentinp/Desktop/KITTI/2011_09_29';
 % Get ground truth and import data
-frameRange = 21:23;
+%frameRange = 21:23;
+frameRange = 3:6;
+
 %Image data
 
 leftImageData = loadImageData([dataBaseDir '/image_00'], frameRange);
@@ -64,7 +66,6 @@ V = p_matched_dense(4,:) - p_matched_dense(2,:);
     
 cla;
 imshow(main2);
-title(sprintf('%d',frame));
 
 %plotMatch(main2,p_matched_dense,0);
 hold on;
@@ -98,7 +99,7 @@ for f_i = 1:size(p_matched_sparse, 2)
          highFreqCoeff = mean(log(abs(Ighf(:))));
 
          coeffLocList(:,end+1) = pixelLoc;
-         coeffList(end+1) = highFreqCoeff;
+         coeffList(end+1) = lowFreqCoeff;
     
         end
     %viscircles([pixelLoc(2), pixelLoc(1)], radius, 'EdgeColor', [red green 0], 'DrawBackgroundCircle', true);
@@ -116,8 +117,9 @@ for c_i = 1:length(coeffList)
     h = rectangle('Position',[pixelLoc(2),pixelLoc(1),radius,radius],...
     'Curvature',[1,1],...
     'FaceColor',[red green 0]);
-    text(pixelLoc(2),pixelLoc(1),sprintf('%.1f',freqCoeff), 'Color', 'c');
+    text(pixelLoc(2),pixelLoc(1),sprintf('%.1f',coeffList(c_i)), 'Color', 'c');
 end
+title(sprintf('%d - Low Freq',frame));
 
 main1 = main2;
 drawnow();
